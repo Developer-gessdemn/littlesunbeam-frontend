@@ -427,17 +427,25 @@ export function ShopProvider({ children }) {
     }
   }, []);
 
-  const setPrints = (newPrints) => {
+  const setPrints = (newPrints, syncToBackend = true) => {
     setPrintsState(newPrints);
     try {
       localStorage.setItem(PRINTS_KEY, JSON.stringify(newPrints));
       window.dispatchEvent(new Event("prints_updated"));
     } catch { }
 
-    // Sync to backend /api/prints
+    if (!syncToBackend) return;
+
+    // Sync to backend /api/prints if admin is logged in
+    const token = localStorage.getItem("little_sunbeam_admin_token") || localStorage.getItem("adminToken");
+    if (!token) return;
+
     fetch(`${API_BASE_URL}/prints`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ prints: newPrints }),
     }).catch(() => { });
   };

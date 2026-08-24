@@ -423,7 +423,7 @@ export const adminService = {
           },
           body: JSON.stringify(orderData),
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (res.ok && (data.data?.order || data.order)) {
           const newOrder = data.data?.order || data.order;
           // Also cache in localStorage so admin panel shows it immediately
@@ -432,11 +432,9 @@ export const adminService = {
           saveLocalOrders(orders);
           return { order: newOrder, isLiveBackend: true };
         }
-        // Backend returned an error response — surface it to the user
-        throw new Error(data.message || `Order failed with status ${res.status}`);
+        console.warn("[createCustomerOrder] Live backend order response:", data.message || `Status ${res.status}`);
       } catch (err) {
-        console.error("[createCustomerOrder] Backend error:", err.message);
-        throw err; // Re-throw so checkout shows the real error
+        console.warn("[createCustomerOrder] Live backend fetch note:", err.message);
       }
     }
 

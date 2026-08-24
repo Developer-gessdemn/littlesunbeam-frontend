@@ -33,9 +33,13 @@ import {
   Check,
   Gift,
   ArrowUpRight,
+  FileText,
+  Printer,
 } from "lucide-react";
 import { useShop } from "@/context/ShopContext.jsx";
 import { adminService } from "@/lib/adminService.js";
+import { generateInvoicePdf, printInvoice } from "@/lib/exportUtils.js";
+import InvoiceModal from "@/components/InvoiceModal.jsx";
 import SiteHeader from "@/components/SiteHeader.jsx";
 import SiteFooter from "@/components/SiteFooter.jsx";
 
@@ -66,6 +70,7 @@ function ProfilePage() {
     removeFromWishlist,
     addToCart,
     setCartOpen,
+    footerInfo,
   } = useShop();
 
   const [activeTab, setActiveTab] = useState("orders");
@@ -74,6 +79,7 @@ function ProfilePage() {
   const [orderFilter, setOrderFilter] = useState("all");
   const [orderSearch, setOrderSearch] = useState("");
   const [trackingOrder, setTrackingOrder] = useState(null);
+  const [viewingInvoiceOrder, setViewingInvoiceOrder] = useState(null);
 
   // Profile Edit State
   const [profileForm, setProfileForm] = useState({
@@ -1047,20 +1053,32 @@ function ProfilePage() {
                                 </span>
                               </div>
 
-                              <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
-                                <div className="text-right">
+                              <div className="flex flex-wrap items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+                                <div className="text-left sm:text-right">
                                   <span className="text-[11px] text-muted-foreground mr-1.5">Order Total:</span>
                                   <span className="text-base font-black text-primary">₹{ord.totalAmount}</span>
                                 </div>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleReorder(ord)}
-                                  className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-4 py-1.5 text-xs font-extrabold text-secondary-foreground hover:bg-secondary/80 transition"
-                                >
-                                  <RotateCcw className="h-3 w-3" />
-                                  <span>Re-order</span>
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingInvoiceOrder(ord)}
+                                    title="View Tax Invoice"
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-extrabold text-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition shadow-2xs cursor-pointer"
+                                  >
+                                    <FileText className="h-3.5 w-3.5 text-primary" />
+                                    <span>Invoice</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleReorder(ord)}
+                                    className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-4 py-1.5 text-xs font-extrabold text-secondary-foreground hover:bg-secondary/80 transition cursor-pointer"
+                                  >
+                                    <RotateCcw className="h-3 w-3" />
+                                    <span>Re-order</span>
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1568,6 +1586,13 @@ function ProfilePage() {
             </div>
           </div>
         )}
+        {/* ─── INVOICE PREVIEW MODAL ─── */}
+        <InvoiceModal
+          isOpen={Boolean(viewingInvoiceOrder)}
+          order={viewingInvoiceOrder}
+          onClose={() => setViewingInvoiceOrder(null)}
+          storeInfo={footerInfo}
+        />
       </main>
 
       {/* ─── SITE FOOTER ─── */}

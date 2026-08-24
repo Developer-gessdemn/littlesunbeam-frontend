@@ -42,6 +42,11 @@ import {
   Copy,
   UserCheck,
   Navigation,
+  FileSpreadsheet,
+  FileText,
+  Printer,
+  Download,
+  ChevronDown,
 } from "lucide-react";
 import {
   AreaChart,
@@ -54,6 +59,15 @@ import {
 } from "recharts";
 import { adminService, getAdminAuth, clearAdminAuth } from "@/lib/adminService";
 import { useShop } from "@/context/ShopContext.jsx";
+import InvoiceModal from "@/components/InvoiceModal.jsx";
+import {
+  exportOrdersToExcel,
+  exportOrdersToPdf,
+  exportCustomersToExcel,
+  exportCustomersToPdf,
+  generateInvoicePdf,
+  printInvoice,
+} from "@/lib/exportUtils";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -204,6 +218,8 @@ function AdminPage() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [orderDetailModalOpen, setOrderDetailModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [copiedAddressId, setCopiedAddressId] = useState(null);
@@ -437,7 +453,7 @@ function AdminPage() {
         setCategoriesList(catRes.categories);
       }
       if (printRes?.prints) {
-        setPrints(printRes.prints);
+        setPrints(printRes.prints, false);
       }
       setOrdersList(ordRes.orders || []);
       setUsersList(usrRes.users || []);
@@ -1307,6 +1323,77 @@ function AdminPage() {
     });
   };
 
+  // ─── EXPORT & INVOICE HANDLERS ──────────────────────────────────────────
+  const [exportOrdersMenuOpen, setExportOrdersMenuOpen] = useState(false);
+  const [exportCustomersMenuOpen, setExportCustomersMenuOpen] = useState(false);
+
+  const handleExportOrders = async (format = "excel") => {
+    try {
+      const listToExport = filteredOrders.length > 0 ? filteredOrders : ordersList;
+      if (!listToExport || listToExport.length === 0) {
+        showNotification("No orders found to export", "error");
+        return;
+      }
+      const filterLabel = orderStatusFilter !== "All" ? `${orderStatusFilter} Orders` : "All Orders";
+      if (format === "excel") {
+        exportOrdersToExcel(
+          listToExport,
+          `little_sunbeam_orders_${orderStatusFilter.toLowerCase()}_${Date.now()}.xlsx`
+        );
+        showNotification(`Exported ${listToExport.length} order(s) to Excel (.xlsx)!`);
+      } else {
+        await exportOrdersToPdf(listToExport, filterLabel, footerInfo);
+        showNotification(`Exported ${listToExport.length} order(s) to PDF report!`);
+      }
+      setExportOrdersMenuOpen(false);
+    } catch (err) {
+      showNotification(err.message || "Failed to export orders", "error");
+    }
+  };
+
+  const handleExportCustomers = async (format = "excel") => {
+    try {
+      const listToExport = filteredCustomers.length > 0 ? filteredCustomers : usersList;
+      if (!listToExport || listToExport.length === 0) {
+        showNotification("No customers found to export", "error");
+        return;
+      }
+      if (format === "excel") {
+        exportCustomersToExcel(listToExport, `little_sunbeam_customers_${Date.now()}.xlsx`);
+        showNotification(`Exported ${listToExport.length} customer(s) to Excel (.xlsx)!`);
+      } else {
+        await exportCustomersToPdf(listToExport, footerInfo);
+        showNotification(`Exported ${listToExport.length} customer(s) to PDF report!`);
+      }
+      setExportCustomersMenuOpen(false);
+    } catch (err) {
+      showNotification(err.message || "Failed to export customers", "error");
+    }
+  };
+
+  const handleViewInvoice = (order) => {
+    if (!order) return;
+    setInvoiceOrder(order);
+    setInvoiceModalOpen(true);
+  };
+
+  const handleDownloadInvoice = async (order) => {
+    try {
+      await generateInvoicePdf(order, footerInfo);
+      showNotification(`Tax Invoice PDF downloaded for #${order.orderNumber || ""}`);
+    } catch (err) {
+      showNotification(err.message || "Failed to generate invoice PDF", "error");
+    }
+  };
+
+  const handlePrintInvoice = (order) => {
+    try {
+      printInvoice(order, footerInfo);
+    } catch (err) {
+      showNotification(err.message || "Failed to print invoice", "error");
+    }
+  };
+
   // ─── AUTHENTICATION GATE ──────────────────────────────────────────────────
   if (!auth.isAuthenticated) {
     return (
@@ -2117,14 +2204,58 @@ function AdminPage() {
                       )}
                     </p>
                   </div>
-                  <button
-                    onClick={loadAllData}
-                    disabled={loading}
-                    className="flex items-center gap-2 rounded-xl bg-primary/10 border border-primary/20 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition disabled:opacity-50"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-                    Refresh Orders
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Export Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setExportOrdersMenuOpen((prev) => !prev)}
+                        disabled={ordersList.length === 0}
+                        className="flex items-center gap-2 rounded-xl bg-card border border-border px-3.5 py-2 text-xs font-bold text-foreground hover:bg-muted/70 transition shadow-xs disabled:opacity-50 cursor-pointer"
+                      >
+                        <Download className="h-3.5 w-3.5 text-primary" />
+                        <span>Export Orders</span>
+                        <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                      </button>
+
+                      {exportOrdersMenuOpen && (
+                        <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-border bg-card p-1.5 shadow-xl z-30 animate-in fade-in zoom-in-95 duration-150">
+                          <button
+                            onClick={() => handleExportOrders("excel")}
+                            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-foreground hover:bg-emerald-500/10 hover:text-emerald-600 transition text-left cursor-pointer"
+                          >
+                            <FileSpreadsheet className="h-4 w-4 text-emerald-600 shrink-0" />
+                            <div>
+                              <p className="font-bold">Export to Excel (.xlsx)</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {filteredOrders.length} order(s) with items & address
+                              </p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleExportOrders("pdf")}
+                            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-foreground hover:bg-rose-500/10 hover:text-rose-600 transition text-left cursor-pointer"
+                          >
+                            <FileText className="h-4 w-4 text-rose-600 shrink-0" />
+                            <div>
+                              <p className="font-bold">Export to PDF (.pdf)</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                Formatted summary table & metrics
+                              </p>
+                            </div>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={loadAllData}
+                      disabled={loading}
+                      className="flex items-center gap-2 rounded-xl bg-primary/10 border border-primary/20 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                      Refresh Orders
+                    </button>
+                  </div>
                 </div>
 
 
@@ -2252,15 +2383,25 @@ function AdminPage() {
                                 </select>
                               </td>
                               <td className="px-4 py-3 text-right">
-                                <button
-                                  onClick={() => {
-                                    setSelectedOrder(o);
-                                    setOrderDetailModalOpen(true);
-                                  }}
-                                  className="rounded-lg bg-muted px-3 py-1 text-xs font-bold hover:bg-muted/80"
-                                >
-                                  View
-                                </button>
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    onClick={() => handleViewInvoice(o)}
+                                    title="View Tax Invoice"
+                                    className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-bold text-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition cursor-pointer shadow-2xs"
+                                  >
+                                    <FileText className="h-3 w-3 text-primary" />
+                                    <span className="hidden sm:inline">Invoice</span>
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedOrder(o);
+                                      setOrderDetailModalOpen(true);
+                                    }}
+                                    className="rounded-lg bg-muted px-3 py-1 text-xs font-bold hover:bg-muted/80 transition cursor-pointer"
+                                  >
+                                    View
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -2607,6 +2748,48 @@ function AdminPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* Export Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setExportCustomersMenuOpen((prev) => !prev)}
+                        disabled={usersList.length === 0}
+                        className="inline-flex items-center gap-2 rounded-xl bg-card border border-border px-3.5 py-2 text-xs font-bold text-foreground hover:bg-muted/70 transition shadow-xs disabled:opacity-50 cursor-pointer"
+                      >
+                        <Download className="h-3.5 w-3.5 text-primary" />
+                        <span>Export Customers</span>
+                        <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                      </button>
+
+                      {exportCustomersMenuOpen && (
+                        <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-border bg-card p-1.5 shadow-xl z-30 animate-in fade-in zoom-in-95 duration-150">
+                          <button
+                            onClick={() => handleExportCustomers("excel")}
+                            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-foreground hover:bg-emerald-500/10 hover:text-emerald-600 transition text-left cursor-pointer"
+                          >
+                            <FileSpreadsheet className="h-4 w-4 text-emerald-600 shrink-0" />
+                            <div>
+                              <p className="font-bold">Export to Excel (.xlsx)</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {filteredCustomers.length} customer(s) & address data
+                              </p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleExportCustomers("pdf")}
+                            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-foreground hover:bg-rose-500/10 hover:text-rose-600 transition text-left cursor-pointer"
+                          >
+                            <FileText className="h-4 w-4 text-rose-600 shrink-0" />
+                            <div>
+                              <p className="font-bold">Export to PDF (.pdf)</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                Formatted customer directory report
+                              </p>
+                            </div>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       onClick={loadAllData}
                       disabled={loading}
@@ -5261,6 +5444,36 @@ function AdminPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Tax Invoice Generation Section */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl bg-muted/40 p-4 border border-border">
+                  <div>
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                      Tax Invoice & Documentation
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Download or print official GST-compliant tax invoice for this order.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => handleViewInvoice(selectedOrder)}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground hover:bg-primary/90 transition shadow-sm cursor-pointer"
+                    >
+                      <Eye className="h-4 w-4" />
+                      <span>View Tax Invoice</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePrintInvoice(selectedOrder)}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-4 py-2.5 text-xs font-bold text-foreground hover:bg-muted transition cursor-pointer shadow-2xs"
+                    >
+                      <Printer className="h-4 w-4 text-muted-foreground" />
+                      <span>Print</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -5562,6 +5775,17 @@ function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* ─── INVOICE PREVIEW MODAL ──────────────────────────────────────── */}
+        <InvoiceModal
+          isOpen={invoiceModalOpen}
+          order={invoiceOrder}
+          onClose={() => {
+            setInvoiceModalOpen(false);
+            setInvoiceOrder(null);
+          }}
+          storeInfo={footerInfo}
+        />
       </div>
     </div>
   );
