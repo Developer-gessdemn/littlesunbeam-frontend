@@ -332,9 +332,51 @@ export function ShopProvider({ children }) {
       return DEFAULT_HERO_BANNERS;
     }
   });
-  const setHeroBanners = (banners) => {
+
+  const fetchLiveHeroBanners = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/banners?all=true`);
+      if (!res.ok) throw new Error("Failed to fetch live hero banners");
+      const data = await res.json();
+      const rawBanners = data.data?.banners || data.banners || [];
+      if (Array.isArray(rawBanners) && rawBanners.length > 0) {
+        setHeroBannersState(rawBanners);
+        try {
+          localStorage.setItem(HERO_BANNERS_KEY, JSON.stringify(rawBanners));
+        } catch { }
+        return;
+      }
+    } catch (err) {
+      try {
+        const stored = localStorage.getItem(HERO_BANNERS_KEY);
+        if (stored) {
+          setHeroBannersState(JSON.parse(stored));
+        }
+      } catch { }
+    }
+  }, []);
+
+  const setHeroBanners = (banners, syncToBackend = true) => {
     setHeroBannersState(banners);
-    try { localStorage.setItem(HERO_BANNERS_KEY, JSON.stringify(banners)); } catch { }
+    try {
+      localStorage.setItem(HERO_BANNERS_KEY, JSON.stringify(banners));
+      window.dispatchEvent(new Event("hero_banners_updated"));
+    } catch { }
+
+    if (!syncToBackend) return;
+
+    // Sync to backend /api/banners if admin token is available
+    const token = localStorage.getItem("little_sunbeam_admin_token") || localStorage.getItem("adminToken");
+    if (!token) return;
+
+    fetch(`${API_BASE_URL}/banners`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ banners }),
+    }).catch(() => { });
   };
 
   // ─── Shop By Print options (editable from admin) ──────────────────────────
@@ -538,10 +580,21 @@ export function ShopProvider({ children }) {
     fetchLiveProducts();
     fetchLivePrints();
     fetchLiveCategories();
+    fetchLiveHeroBanners();
 
     // Listen for product updates, print updates, and category updates in real-time
     const handleProductsUpdated = () => {
       fetchLiveProducts();
+    };
+
+    const handleHeroBannersUpdated = () => {
+      fetchLiveHeroBanners();
+      try {
+        const stored = localStorage.getItem(HERO_BANNERS_KEY);
+        if (stored) {
+          setHeroBannersState(JSON.parse(stored));
+        }
+      } catch { }
     };
 
     const handlePrintsUpdated = () => {
@@ -571,7 +624,13 @@ export function ShopProvider({ children }) {
     window.addEventListener("products_updated", handleProductsUpdated);
     window.addEventListener("prints_updated", handlePrintsUpdated);
     window.addEventListener("categories_updated", handleCategoriesUpdated);
+    window.addEventListener("hero_banners_updated", handleHeroBannersUpdated);
     window.addEventListener("storage", (e) => {
+      if (e.key === HERO_BANNERS_KEY && e.newValue) {
+        try {
+          setHeroBannersState(JSON.parse(e.newValue));
+        } catch { }
+      }
       if (e.key === PRINTS_KEY && e.newValue) {
         try {
           setPrintsState(JSON.parse(e.newValue));
@@ -594,9 +653,10 @@ export function ShopProvider({ children }) {
       window.removeEventListener("products_updated", handleProductsUpdated);
       window.removeEventListener("prints_updated", handlePrintsUpdated);
       window.removeEventListener("categories_updated", handleCategoriesUpdated);
+      window.removeEventListener("hero_banners_updated", handleHeroBannersUpdated);
       window.removeEventListener("storage", handleProductsUpdated);
     };
-  }, [fetchLiveProducts, fetchLivePrints, fetchLiveCategories]);
+  }, [fetchLiveProducts, fetchLivePrints, fetchLiveCategories, fetchLiveHeroBanners]);
 
   // ─── Customer Auth state ──────────────────────────────────────────────────
   const [customerAuth, setCustomerAuth] = useState(getStoredCustomer);
@@ -766,7 +826,7 @@ export function ShopProvider({ children }) {
             }
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [currentUserId, customerAuth.token]);
 

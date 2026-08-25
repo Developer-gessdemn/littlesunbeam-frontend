@@ -47,6 +47,10 @@ import {
   Printer,
   Download,
   ChevronDown,
+  ChevronLeft,
+  Cloud,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 import {
   AreaChart,
@@ -130,6 +134,9 @@ function AdminPage() {
       : []
   );
   const [selectedSlideIdx, setSelectedSlideIdx] = useState(0);
+  const [bannerImageUploading, setBannerImageUploading] = useState(false);
+  const [savingBanners, setSavingBanners] = useState(false);
+
   useEffect(() => {
     if (heroBanners && heroBanners.length > 0) {
       setEditingBanners(JSON.parse(JSON.stringify(heroBanners)));
@@ -154,9 +161,11 @@ function AdminPage() {
       primaryBtnTo: "/shop",
       secondaryBtnLabel: "",
       secondaryBtnTo: "/shop",
-      image: "/src/assets/hero-baby.jpg",
+      image: "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&w=1000&q=80",
       imageAlt: "Banner image",
       bgColor: "",
+      isActive: true,
+      order: editingBanners.length,
     };
     setEditingBanners((prev) => {
       const next = [...prev, newSlide];
@@ -173,9 +182,57 @@ function AdminPage() {
     });
   };
 
-  const saveHeroBanners = () => {
-    if (setHeroBanners) setHeroBanners(editingBanners);
-    showNotification("Hero banner slides saved and updated live!");
+  const moveSlide = (idx, direction) => {
+    setEditingBanners((prev) => {
+      const targetIdx = idx + direction;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const next = [...prev];
+      const temp = next[idx];
+      next[idx] = next[targetIdx];
+      next[targetIdx] = temp;
+      setSelectedSlideIdx(targetIdx);
+      return next;
+    });
+  };
+
+  const handleHeroBannerImageUpload = async (e, slideIdx) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.match(/^image\/(jpeg|png|webp|gif|svg\+xml)$/)) {
+      alert("Invalid file format. Please upload JPG, PNG, WEBP, GIF, or SVG image.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert("File size exceeds 10MB limit. Please upload a smaller image.");
+      return;
+    }
+
+    setBannerImageUploading(true);
+    try {
+      const url = await adminService.uploadImage(file);
+      updateSlide(slideIdx, "image", url);
+      showNotification("☁️ Banner image uploaded to Cloudinary successfully!");
+    } catch (err) {
+      alert("Failed to upload banner image: " + err.message);
+    } finally {
+      setBannerImageUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const saveHeroBanners = async () => {
+    setSavingBanners(true);
+    try {
+      const res = await adminService.syncHeroBanners(editingBanners);
+      if (setHeroBanners) setHeroBanners(res.banners || editingBanners);
+      showNotification("✅ Hero banner slides saved to MongoDB database & updated live!");
+    } catch (err) {
+      if (setHeroBanners) setHeroBanners(editingBanners);
+      showNotification("Hero banner slides saved locally!");
+    } finally {
+      setSavingBanners(false);
+    }
   };
 
   // Auth State
@@ -764,12 +821,12 @@ function AdminPage() {
         sizes: Array.isArray(cv.sizes) && cv.sizes.length > 0 ? cv.sizes : (Array.isArray(cv.inventory) ? cv.inventory.map((inv) => inv.size) : ["0 - 3 Months"]),
         inventory: Array.isArray(cv.inventory)
           ? cv.inventory.map((inv) => ({
-              size: inv.size || "Standard",
-              stock: Number(inv.stock) || 0,
-              sku: inv.sku || "",
-              price: inv.price !== undefined ? inv.price : "",
-              mrp: inv.mrp !== undefined ? inv.mrp : "",
-            }))
+            size: inv.size || "Standard",
+            stock: Number(inv.stock) || 0,
+            sku: inv.sku || "",
+            price: inv.price !== undefined ? inv.price : "",
+            mrp: inv.mrp !== undefined ? inv.mrp : "",
+          }))
           : [],
       }));
     } else {
@@ -1158,8 +1215,8 @@ function AdminPage() {
           typeof editingSubCategory === "object" && editingSubCategory._id
             ? editingSubCategory._id
             : typeof editingSubCategory === "string"
-            ? editingSubCategory
-            : editingSubCategory.name;
+              ? editingSubCategory
+              : editingSubCategory.name;
         await adminService.updateSubCategory(catId, subId, subCategoryForm);
         showNotification(`Subcategory "${subCategoryForm.name}" updated successfully!`);
       } else {
@@ -2985,11 +3042,10 @@ function AdminPage() {
                                       <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{u.email}</p>
                                       <div className="mt-1">
                                         <span
-                                          className={`inline-block rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${
-                                            u.role === "admin"
+                                          className={`inline-block rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${u.role === "admin"
                                               ? "bg-purple-500/10 text-purple-600 border border-purple-500/20"
                                               : "bg-muted text-foreground border border-border"
-                                          }`}
+                                            }`}
                                         >
                                           {u.role === "admin" ? "Admin" : "Customer"}
                                         </span>
@@ -3063,11 +3119,10 @@ function AdminPage() {
                                     {hasAddress && (
                                       <button
                                         onClick={() => copyAddressToClipboard(u, customerIdKey)}
-                                        className={`p-1.5 rounded-lg border transition cursor-pointer ${
-                                          isCopied
+                                        className={`p-1.5 rounded-lg border transition cursor-pointer ${isCopied
                                             ? "bg-emerald-600 text-white border-emerald-600"
                                             : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted"
-                                        }`}
+                                          }`}
                                         title="Copy Address"
                                       >
                                         {isCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -3327,65 +3382,232 @@ function AdminPage() {
                 </div>
 
                 {/* ─── Hero Banner Slides Editor ─────────────────────────────── */}
-                <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
-                  <div className="flex items-center justify-between">
+                <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border pb-4">
                     <div>
-                      <h2 className="text-base font-extrabold text-foreground">Hero Banner Slides</h2>
-                      <p className="text-xs text-muted-foreground">
-                        Manage the sliding banners in the home page hero section. Changes are published live.
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <h2 className="text-base font-extrabold text-foreground">✨ Dynamic Hero Banner Slides</h2>
+                        <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">
+                          {editingBanners.length} {editingBanners.length === 1 ? "Slide" : "Slides"}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-600 border border-emerald-500/20">
+                          <Cloud className="h-3 w-3" /> Cloudinary &amp; Database Connected
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Manage homepage hero banners dynamically. Images are uploaded to Cloudinary CDN and stored directly in MongoDB.
                       </p>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={addSlide}
+                        className="flex items-center gap-1.5 rounded-xl bg-primary/10 border border-primary/30 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition active:scale-95 shadow-xs"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add Slide
+                      </button>
+                      <button
+                        type="button"
+                        disabled={savingBanners}
+                        onClick={saveHeroBanners}
+                        className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 transition active:scale-95 disabled:opacity-50"
+                      >
+                        {savingBanners ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-3.5 w-3.5" /> Save All to DB
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Slide Tabs Navigation & Controls */}
+                  <div className="flex items-center gap-2 flex-wrap bg-muted/20 p-2 rounded-xl border border-border/60">
+                    {editingBanners.map((slide, idx) => (
+                      <button
+                        key={slide.id || slide._id || idx}
+                        type="button"
+                        onClick={() => setSelectedSlideIdx(idx)}
+                        className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold border transition ${
+                          idx === selectedSlideIdx
+                            ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                            : "bg-card border-border text-foreground hover:border-primary/50"
+                        }`}
+                      >
+                        <span>Slide {idx + 1}</span>
+                        {slide.isActive === false && (
+                          <span className="text-[10px] opacity-75 font-normal">(Hidden)</span>
+                        )}
+                        {slide.badge && (
+                          <span className="max-w-[70px] truncate text-[10px] opacity-85 font-normal">
+                            · {slide.badge}
+                          </span>
+                        )}
+                      </button>
+                    ))}
                     <button
                       type="button"
                       onClick={addSlide}
-                      className="flex items-center gap-1.5 rounded-xl bg-primary/10 border border-primary/30 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 transition"
+                      className="rounded-lg border border-dashed border-border px-3 py-2 text-xs font-bold text-muted-foreground hover:text-primary hover:border-primary transition"
                     >
-                      + Add Slide
+                      + New
                     </button>
-                  </div>
-
-                  {/* Slide Tab Picker */}
-                  <div className="flex gap-2 flex-wrap">
-                    {editingBanners.map((slide, idx) => (
-                      <button
-                        key={slide.id || idx}
-                        type="button"
-                        onClick={() => setSelectedSlideIdx(idx)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-bold border transition ${idx === selectedSlideIdx
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-muted/40 border-border text-foreground hover:border-primary"
-                          }`}
-                      >
-                        Slide {idx + 1}
-                      </button>
-                    ))}
                   </div>
 
                   {/* Slide Editor Form */}
                   {editingBanners[selectedSlideIdx] && (
-                    <div className="grid gap-4">
+                    <div className="grid gap-6">
+                      {/* Top Bar for Selected Slide */}
+                      <div className="flex items-center justify-between bg-muted/30 p-3 rounded-xl border border-border">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-black text-foreground">
+                            Editing Slide #{selectedSlideIdx + 1}
+                          </span>
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={editingBanners[selectedSlideIdx].isActive !== false}
+                              onChange={(e) => updateSlide(selectedSlideIdx, "isActive", e.target.checked)}
+                              className="rounded border-border text-primary focus:ring-primary h-4 w-4"
+                            />
+                            <span className="text-xs font-bold text-muted-foreground">
+                              {editingBanners[selectedSlideIdx].isActive !== false ? "🟢 Visible on Storefront" : "⚪ Hidden from Storefront"}
+                            </span>
+                          </label>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={selectedSlideIdx === 0}
+                            onClick={() => moveSlide(selectedSlideIdx, -1)}
+                            title="Move slide left"
+                            className="p-1.5 rounded-lg border border-border bg-card text-foreground hover:bg-muted disabled:opacity-30 transition"
+                          >
+                            <ArrowLeft className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={selectedSlideIdx === editingBanners.length - 1}
+                            onClick={() => moveSlide(selectedSlideIdx, 1)}
+                            title="Move slide right"
+                            className="p-1.5 rounded-lg border border-border bg-card text-foreground hover:bg-muted disabled:opacity-30 transition"
+                          >
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Live Storefront Mini Preview */}
+                      <div className="rounded-2xl border border-border overflow-hidden bg-muted/10 p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+                            👁️ Real-time Slide Preview
+                          </span>
+                          <span className="text-[10px] font-medium text-muted-foreground">
+                            Slide {selectedSlideIdx + 1} of {editingBanners.length}
+                          </span>
+                        </div>
+                        <div
+                          className="rounded-xl border border-border/70 p-5 grid sm:grid-cols-2 gap-4 items-center transition-colors shadow-inner"
+                          style={{
+                            background:
+                              editingBanners[selectedSlideIdx].bgColor ||
+                              "radial-gradient(ellipse at top left, oklch(0.98 0.02 95), oklch(0.95 0.01 95))",
+                          }}
+                        >
+                          <div className="space-y-2">
+                            {editingBanners[selectedSlideIdx].badge && (
+                              <span className="inline-block rounded-full bg-sun px-3 py-0.5 text-[11px] font-bold text-sun-foreground">
+                                {editingBanners[selectedSlideIdx].badge}
+                              </span>
+                            )}
+                            <h3
+                              className="text-lg font-black leading-snug"
+                              dangerouslySetInnerHTML={{
+                                __html:
+                                  editingBanners[selectedSlideIdx].heading || "Slide Heading Preview",
+                              }}
+                            />
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {editingBanners[selectedSlideIdx].subtext || "Promotional subtext goes here."}
+                            </p>
+                            <div className="flex gap-2 pt-1">
+                              {editingBanners[selectedSlideIdx].primaryBtnLabel && (
+                                <span className="rounded-full bg-primary px-3.5 py-1.5 text-[11px] font-bold text-primary-foreground shadow-xs">
+                                  {editingBanners[selectedSlideIdx].primaryBtnLabel}
+                                </span>
+                              )}
+                              {editingBanners[selectedSlideIdx].secondaryBtnLabel && (
+                                <span className="rounded-full bg-accent px-3.5 py-1.5 text-[11px] font-bold text-accent-foreground shadow-xs">
+                                  {editingBanners[selectedSlideIdx].secondaryBtnLabel}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex justify-center">
+                            <img
+                              src={editingBanners[selectedSlideIdx].image || "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&w=600&q=80"}
+                              alt="Slide preview"
+                              className="h-28 max-w-full object-contain rounded-xl drop-shadow"
+                              onError={(e) => {
+                                e.currentTarget.src = "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&w=600&q=80";
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Input fields */}
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                            Badge Label
+                            Badge Label (Pill Tag)
                           </label>
                           <input
                             type="text"
                             value={editingBanners[selectedSlideIdx].badge || ""}
                             onChange={(e) => updateSlide(selectedSlideIdx, "badge", e.target.value)}
-                            placeholder="e.g. New Arrival"
+                            placeholder="e.g. 100% Organic Muslin Cotton, Best Seller"
                             className="w-full rounded-xl border border-border bg-muted/40 p-2.5 text-xs font-medium outline-none focus:border-primary"
                           />
                         </div>
+
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                            Background Color (CSS)
+                            Background Color Theme
                           </label>
+                          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                            {[
+                              { label: "Default", color: "" },
+                              { label: "Mint Green", color: "oklch(0.97 0.025 160)" },
+                              { label: "Warm Honey", color: "oklch(0.97 0.02 95)" },
+                              { label: "Soft Blossom", color: "oklch(0.97 0.025 20)" },
+                              { label: "Sky Blue", color: "oklch(0.97 0.02 240)" },
+                              { label: "Lavender", color: "oklch(0.96 0.03 300)" },
+                            ].map((preset) => (
+                              <button
+                                key={preset.label}
+                                type="button"
+                                onClick={() => updateSlide(selectedSlideIdx, "bgColor", preset.color)}
+                                className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${
+                                  (editingBanners[selectedSlideIdx].bgColor || "") === preset.color
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-muted/40 border-border text-foreground hover:border-primary"
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
                           <input
                             type="text"
                             value={editingBanners[selectedSlideIdx].bgColor || ""}
                             onChange={(e) => updateSlide(selectedSlideIdx, "bgColor", e.target.value)}
-                            placeholder="e.g. #fff8f0 or leave blank for default"
+                            placeholder="Custom CSS color e.g. #fff9f0 or oklch(0.97 0.025 160)"
                             className="w-full rounded-xl border border-border bg-muted/40 p-2.5 text-xs font-medium outline-none focus:border-primary"
                           />
                         </div>
@@ -3393,7 +3615,7 @@ function AdminPage() {
 
                       <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                          Heading <span className="normal-case text-muted-foreground/70 font-normal">(wrap a keyword in {`<span class="sun-underline">`} for the orange underline effect)</span>
+                          Slide Heading <span className="normal-case text-muted-foreground/70 font-normal">(wrap words in {`<span class="sun-underline">`} for the organic sun highlight)</span>
                         </label>
                         <textarea
                           rows={2}
@@ -3412,7 +3634,7 @@ function AdminPage() {
                           rows={2}
                           value={editingBanners[selectedSlideIdx].subtext || ""}
                           onChange={(e) => updateSlide(selectedSlideIdx, "subtext", e.target.value)}
-                          placeholder="Short promotional description shown below the heading"
+                          placeholder="100% organic cotton essentials designed for delicate newborn skin..."
                           className="w-full rounded-xl border border-border bg-muted/40 p-2.5 text-xs font-medium outline-none focus:border-primary"
                         />
                       </div>
@@ -3438,7 +3660,7 @@ function AdminPage() {
                             type="text"
                             value={editingBanners[selectedSlideIdx].primaryBtnTo || ""}
                             onChange={(e) => updateSlide(selectedSlideIdx, "primaryBtnTo", e.target.value)}
-                            placeholder="/shop"
+                            placeholder="/shop or /shop?category=hospital-kit"
                             className="w-full rounded-xl border border-border bg-muted/40 p-2.5 text-xs font-medium outline-none focus:border-primary"
                           />
                         </div>
@@ -3447,13 +3669,13 @@ function AdminPage() {
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                            Secondary Button Label
+                            Secondary Button Label (Optional)
                           </label>
                           <input
                             type="text"
                             value={editingBanners[selectedSlideIdx].secondaryBtnLabel || ""}
                             onChange={(e) => updateSlide(selectedSlideIdx, "secondaryBtnLabel", e.target.value)}
-                            placeholder="Leave empty to hide"
+                            placeholder="e.g. Newborn Hospital Kits (or leave blank to hide)"
                             className="w-full rounded-xl border border-border bg-muted/40 p-2.5 text-xs font-medium outline-none focus:border-primary"
                           />
                         </div>
@@ -3471,96 +3693,118 @@ function AdminPage() {
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                          Banner Image
-                        </label>
+                      {/* Banner Image Upload with Cloudinary Support */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                            Banner Image (Cloudinary CDN Upload)
+                          </label>
+                          {editingBanners[selectedSlideIdx].image?.includes("cloudinary.com") && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                              <Cloud className="h-3 w-3" /> Cloudinary Hosted
+                            </span>
+                          )}
+                        </div>
 
                         {/* Drag-and-drop / click-to-upload zone */}
                         <label
                           htmlFor={`banner-img-upload-${selectedSlideIdx}`}
-                          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border bg-muted/30 px-4 py-6 cursor-pointer hover:border-primary hover:bg-primary/5 transition-all"
+                          className="group relative flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 px-6 py-8 cursor-pointer hover:border-primary hover:bg-primary/5 transition-all"
                         >
-                          {editingBanners[selectedSlideIdx].image ? (
+                          {bannerImageUploading ? (
+                            <div className="flex flex-col items-center gap-2 py-4">
+                              <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                              <p className="text-xs font-bold text-foreground">Uploading image to Cloudinary CDN...</p>
+                              <p className="text-[11px] text-muted-foreground">Please wait while image is processed</p>
+                            </div>
+                          ) : editingBanners[selectedSlideIdx].image ? (
                             <div className="flex flex-col items-center gap-3">
                               <img
                                 src={editingBanners[selectedSlideIdx].image}
                                 alt="Banner preview"
-                                className="h-36 max-w-full object-contain rounded-xl border border-border bg-white shadow"
-                                onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                className="h-40 max-w-full object-contain rounded-xl border border-border bg-white shadow-sm"
+                                onError={(e) => {
+                                  e.currentTarget.src = "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&w=600&q=80";
+                                }}
                               />
-                              <span className="text-xs font-bold text-primary group-hover:underline">
-                                📷 Click to replace image
+                              <span className="text-xs font-bold text-primary group-hover:underline flex items-center gap-1.5">
+                                <Upload className="h-3.5 w-3.5" /> Click or drag new image to replace on Cloudinary
                               </span>
                             </div>
                           ) : (
-                            <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                              <span className="text-3xl">🖼️</span>
-                              <p className="text-xs font-bold text-center">
-                                <span className="text-primary">Click to upload</span> or drag &amp; drop
+                            <div className="flex flex-col items-center gap-2 text-muted-foreground py-4">
+                              <Cloud className="h-10 w-10 text-primary/70" />
+                              <p className="text-xs font-bold text-foreground text-center">
+                                <span className="text-primary">Click to upload</span> or drag image file here
                               </p>
-                              <p className="text-[11px] text-center">
-                                PNG, JPG, WebP · Recommended: 800×600px or wider
+                              <p className="text-[11px] text-muted-foreground text-center">
+                                PNG, JPG, WebP, SVG · Auto-uploaded to Cloudinary · Recommended: 800×600px+
                               </p>
                             </div>
                           )}
                           <input
                             id={`banner-img-upload-${selectedSlideIdx}`}
                             type="file"
-                            accept="image/png,image/jpeg,image/webp,image/gif"
+                            disabled={bannerImageUploading}
+                            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
                             className="sr-only"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              const reader = new FileReader();
-                              reader.onload = (ev) => {
-                                updateSlide(selectedSlideIdx, "image", ev.target.result);
-                              };
-                              reader.readAsDataURL(file);
-                              e.target.value = ""; // reset so same file can be re-uploaded
-                            }}
+                            onChange={(e) => handleHeroBannerImageUpload(e, selectedSlideIdx)}
                           />
                         </label>
 
-                        {/* OR: paste URL fallback */}
-                        <div className="mt-3 flex items-center gap-2">
+                        {/* OR: paste direct Cloudinary / image URL fallback */}
+                        <div className="flex items-center gap-2 pt-1">
                           <div className="flex-1 h-px bg-border" />
-                          <span className="text-[11px] font-bold text-muted-foreground">OR PASTE IMAGE URL</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            OR PASTE IMAGE URL
+                          </span>
                           <div className="flex-1 h-px bg-border" />
                         </div>
-                        <input
-                          type="text"
-                          value={editingBanners[selectedSlideIdx].image?.startsWith("data:") ? "" : (editingBanners[selectedSlideIdx].image || "")}
-                          onChange={(e) => updateSlide(selectedSlideIdx, "image", e.target.value)}
-                          placeholder="https://example.com/banner.jpg"
-                          className="mt-2 w-full rounded-xl border border-border bg-muted/40 p-2.5 text-xs font-medium outline-none focus:border-primary"
-                        />
-                        {editingBanners[selectedSlideIdx].image && (
-                          <button
-                            type="button"
-                            onClick={() => updateSlide(selectedSlideIdx, "image", "")}
-                            className="mt-2 text-[11px] font-bold text-red-500 hover:text-red-700 transition"
-                          >
-                            ✕ Remove image
-                          </button>
-                        )}
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={editingBanners[selectedSlideIdx].image || ""}
+                            onChange={(e) => updateSlide(selectedSlideIdx, "image", e.target.value)}
+                            placeholder="https://res.cloudinary.com/... or https://images.unsplash.com/..."
+                            className="flex-1 rounded-xl border border-border bg-muted/40 p-2.5 text-xs font-medium outline-none focus:border-primary"
+                          />
+                          {editingBanners[selectedSlideIdx].image && (
+                            <button
+                              type="button"
+                              onClick={() => updateSlide(selectedSlideIdx, "image", "")}
+                              className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-100 transition shrink-0"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-border">
+                      {/* Footer Actions */}
+                      <div className="flex items-center justify-between pt-4 border-t border-border gap-3 flex-wrap">
                         <button
                           type="button"
+                          disabled={savingBanners}
                           onClick={saveHeroBanners}
-                          className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 transition active:scale-95"
+                          className="flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-xs font-bold text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 transition active:scale-95 disabled:opacity-50"
                         >
-                          <Check className="h-4 w-4" /> Save All Slides
+                          {savingBanners ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" /> Saving All Slides to MongoDB...
+                            </>
+                          ) : (
+                            <>
+                              <Check className="h-4 w-4" /> Save All Slides to Database
+                            </>
+                          )}
                         </button>
                         {editingBanners.length > 1 && (
                           <button
                             type="button"
                             onClick={() => removeSlide(selectedSlideIdx)}
-                            className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-100 transition"
+                            className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-100 transition active:scale-95"
                           >
-                            🗑 Delete Slide {selectedSlideIdx + 1}
+                            <Trash2 className="h-3.5 w-3.5 inline mr-1" /> Delete Slide {selectedSlideIdx + 1}
                           </button>
                         )}
                       </div>
@@ -3580,8 +3824,8 @@ function AdminPage() {
                         </span>
                         <span
                           className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold transition-all ${isShopByPrintEnabled
-                              ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-                              : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                            ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                            : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
                             }`}
                         >
                           <span
@@ -3661,8 +3905,8 @@ function AdminPage() {
                           <div
                             key={printId || idx}
                             className={`flex items-center justify-between gap-3 rounded-xl border p-3 transition ${isPrintActive
-                                ? "border-border bg-muted/40 hover:bg-muted/60"
-                                : "border-border/60 bg-muted/10 opacity-75"
+                              ? "border-border bg-muted/40 hover:bg-muted/60"
+                              : "border-border/60 bg-muted/10 opacity-75"
                               }`}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
@@ -3700,8 +3944,8 @@ function AdminPage() {
                                   }
                                 }}
                                 className={`rounded-lg border px-2 py-1 text-[10px] font-bold transition ${isPrintActive
-                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                                    : "border-border bg-muted text-muted-foreground hover:bg-muted/80"
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                  : "border-border bg-muted text-muted-foreground hover:bg-muted/80"
                                   }`}
                               >
                                 {isPrintActive ? "🟢 Active" : "⚪ Hidden"}
@@ -3774,8 +4018,8 @@ function AdminPage() {
                             type="button"
                             onClick={() => setNewPrintIcon(em)}
                             className={`h-9 w-9 rounded-xl border text-lg transition hover:scale-110 active:scale-95 ${newPrintIcon === em
-                                ? "border-primary bg-primary/10 ring-2 ring-primary/30"
-                                : "border-border bg-background hover:border-primary"
+                              ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                              : "border-border bg-background hover:border-primary"
                               }`}
                           >
                             {em}
@@ -4085,11 +4329,10 @@ function AdminPage() {
                                             subCategoryId: !isSelected && typeof sc === "object" && sc._id ? String(sc._id) : "",
                                           });
                                         }}
-                                        className={`rounded-lg px-2.5 py-0.5 text-[11px] font-bold border transition ${
-                                          isSelected
+                                        className={`rounded-lg px-2.5 py-0.5 text-[11px] font-bold border transition ${isSelected
                                             ? "bg-primary text-primary-foreground border-primary shadow-xs"
                                             : "bg-background text-foreground border-border hover:border-primary/60"
-                                        }`}
+                                          }`}
                                       >
                                         {subName}
                                       </button>
@@ -5536,11 +5779,10 @@ function AdminPage() {
                       <div>
                         <span className="text-muted-foreground block text-[10px] uppercase font-bold">Role</span>
                         <span
-                          className={`inline-block mt-0.5 rounded-md px-2 py-0.5 text-[10px] font-black uppercase ${
-                            selectedCustomer.role === "admin"
+                          className={`inline-block mt-0.5 rounded-md px-2 py-0.5 text-[10px] font-black uppercase ${selectedCustomer.role === "admin"
                               ? "bg-purple-500/10 text-purple-600 border border-purple-500/20"
                               : "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20"
-                          }`}
+                            }`}
                         >
                           {selectedCustomer.role === "admin" ? "Administrator" : "Customer"}
                         </span>
@@ -5626,11 +5868,10 @@ function AdminPage() {
 
                             <button
                               onClick={() => copyAddressToClipboard(selectedCustomer, "modal_" + (selectedCustomer._id || selectedCustomer.email))}
-                              className={`w-full mt-2 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs ${
-                                modalCopied
+                              className={`w-full mt-2 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs ${modalCopied
                                   ? "bg-emerald-600 text-white"
                                   : "bg-card border border-border text-foreground hover:bg-muted"
-                              }`}
+                                }`}
                             >
                               {modalCopied ? (
                                 <>
@@ -5704,15 +5945,14 @@ function AdminPage() {
                               </td>
                               <td className="px-3.5 py-2.5">
                                 <span
-                                  className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${
-                                    ord.orderStatus === "Delivered"
+                                  className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${ord.orderStatus === "Delivered"
                                       ? "bg-emerald-500/10 text-emerald-600"
                                       : ord.orderStatus === "Cancelled"
-                                      ? "bg-destructive/10 text-destructive"
-                                      : ord.orderStatus === "Shipped"
-                                      ? "bg-purple-500/10 text-purple-600"
-                                      : "bg-amber-500/10 text-amber-600"
-                                  }`}
+                                        ? "bg-destructive/10 text-destructive"
+                                        : ord.orderStatus === "Shipped"
+                                          ? "bg-purple-500/10 text-purple-600"
+                                          : "bg-amber-500/10 text-amber-600"
+                                    }`}
                                 >
                                   {ord.orderStatus}
                                 </span>

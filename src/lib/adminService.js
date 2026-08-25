@@ -898,4 +898,135 @@ export const adminService = {
       return { success: true, isLiveBackend: false };
     }
   },
+
+  // 9. Hero Banners
+  async getHeroBanners() {
+    try {
+      const res = await apiRequest("/banners");
+      const bannersList = res.data?.banners || res.banners || [];
+      if (Array.isArray(bannersList) && bannersList.length > 0) {
+        try {
+          localStorage.setItem("little_sunbeam_hero_banners", JSON.stringify(bannersList));
+        } catch { }
+        return { banners: bannersList, isLiveBackend: true };
+      }
+      // If empty from API, fallback to localStorage
+      try {
+        const stored = localStorage.getItem("little_sunbeam_hero_banners");
+        return { banners: stored ? JSON.parse(stored) : [], isLiveBackend: true };
+      } catch {
+        return { banners: [], isLiveBackend: true };
+      }
+    } catch {
+      try {
+        const stored = localStorage.getItem("little_sunbeam_hero_banners");
+        return { banners: stored ? JSON.parse(stored) : [], isLiveBackend: false };
+      } catch {
+        return { banners: [], isLiveBackend: false };
+      }
+    }
+  },
+
+  async syncHeroBanners(banners) {
+    try {
+      const res = await apiRequest("/banners", {
+        method: "PUT",
+        body: JSON.stringify({ banners }),
+      });
+      const list = res.data?.banners || banners;
+      try {
+        localStorage.setItem("little_sunbeam_hero_banners", JSON.stringify(list));
+        if (typeof window !== "undefined") window.dispatchEvent(new Event("hero_banners_updated"));
+      } catch { }
+      return { banners: list, isLiveBackend: true };
+    } catch {
+      try {
+        localStorage.setItem("little_sunbeam_hero_banners", JSON.stringify(banners));
+        if (typeof window !== "undefined") window.dispatchEvent(new Event("hero_banners_updated"));
+      } catch { }
+      return { banners, isLiveBackend: false };
+    }
+  },
+
+  async createHeroBanner(bannerData) {
+    try {
+      const res = await apiRequest("/banners", {
+        method: "POST",
+        body: JSON.stringify(bannerData),
+      });
+      const newBanner = res.data?.banner || bannerData;
+      try {
+        const stored = JSON.parse(localStorage.getItem("little_sunbeam_hero_banners") || "[]");
+        stored.push(newBanner);
+        localStorage.setItem("little_sunbeam_hero_banners", JSON.stringify(stored));
+        if (typeof window !== "undefined") window.dispatchEvent(new Event("hero_banners_updated"));
+      } catch { }
+      return { banner: newBanner, isLiveBackend: true };
+    } catch {
+      const newBanner = {
+        _id: "banner_" + Date.now(),
+        id: Date.now(),
+        ...bannerData,
+      };
+      try {
+        const stored = JSON.parse(localStorage.getItem("little_sunbeam_hero_banners") || "[]");
+        stored.push(newBanner);
+        localStorage.setItem("little_sunbeam_hero_banners", JSON.stringify(stored));
+        if (typeof window !== "undefined") window.dispatchEvent(new Event("hero_banners_updated"));
+      } catch { }
+      return { banner: newBanner, isLiveBackend: false };
+    }
+  },
+
+  async updateHeroBanner(id, updates) {
+    try {
+      const res = await apiRequest(`/banners/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(updates),
+      });
+      const updatedBanner = res.data?.banner || { id, ...updates };
+      try {
+        const stored = JSON.parse(localStorage.getItem("little_sunbeam_hero_banners") || "[]");
+        const idx = stored.findIndex((b) => String(b._id) === String(id) || String(b.id) === String(id));
+        if (idx !== -1) {
+          stored[idx] = { ...stored[idx], ...updatedBanner };
+          localStorage.setItem("little_sunbeam_hero_banners", JSON.stringify(stored));
+          if (typeof window !== "undefined") window.dispatchEvent(new Event("hero_banners_updated"));
+        }
+      } catch { }
+      return { banner: updatedBanner, isLiveBackend: true };
+    } catch {
+      try {
+        const stored = JSON.parse(localStorage.getItem("little_sunbeam_hero_banners") || "[]");
+        const idx = stored.findIndex((b) => String(b._id) === String(id) || String(b.id) === String(id));
+        if (idx !== -1) {
+          stored[idx] = { ...stored[idx], ...updates };
+          localStorage.setItem("little_sunbeam_hero_banners", JSON.stringify(stored));
+          if (typeof window !== "undefined") window.dispatchEvent(new Event("hero_banners_updated"));
+        }
+      } catch { }
+      return { banner: { id, ...updates }, isLiveBackend: false };
+    }
+  },
+
+  async deleteHeroBanner(id) {
+    try {
+      await apiRequest(`/banners/${id}`, { method: "DELETE" });
+      try {
+        const stored = JSON.parse(localStorage.getItem("little_sunbeam_hero_banners") || "[]");
+        const updated = stored.filter((b) => String(b._id) !== String(id) && String(b.id) !== String(id));
+        localStorage.setItem("little_sunbeam_hero_banners", JSON.stringify(updated));
+        if (typeof window !== "undefined") window.dispatchEvent(new Event("hero_banners_updated"));
+      } catch { }
+      return { success: true, isLiveBackend: true };
+    } catch {
+      try {
+        const stored = JSON.parse(localStorage.getItem("little_sunbeam_hero_banners") || "[]");
+        const updated = stored.filter((b) => String(b._id) !== String(id) && String(b.id) !== String(id));
+        localStorage.setItem("little_sunbeam_hero_banners", JSON.stringify(updated));
+        if (typeof window !== "undefined") window.dispatchEvent(new Event("hero_banners_updated"));
+      } catch { }
+      return { success: true, isLiveBackend: false };
+    }
+  },
 };
