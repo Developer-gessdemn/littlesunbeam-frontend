@@ -29,6 +29,7 @@ import {
 import SiteHeader from "@/components/SiteHeader.jsx";
 import SiteFooter from "@/components/SiteFooter.jsx";
 import ProductCard from "@/components/ProductCard.jsx";
+import ProductFloatingVideo from "@/components/ProductFloatingVideo.jsx";
 import { useShop, normalizeProduct } from "@/context/ShopContext.jsx";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
@@ -335,16 +336,18 @@ function ProductDetailsPage() {
   }, [reviewsList, customer]);
 
   const wishlisted = isWishlisted(product?.id || product?._id);
-  const ratingVal =
-    reviewStats.averageRating !== null && reviewStats.averageRating !== undefined
-      ? reviewStats.averageRating
-      : product?.rating || 5.0;
   const reviewsCountVal =
     reviewStats.totalReviews !== undefined
       ? reviewStats.totalReviews
       : product?.reviewCount !== undefined
         ? product.reviewCount
         : reviewsList.length;
+  const ratingVal =
+    reviewsCountVal > 0
+      ? (reviewStats.averageRating !== null && reviewStats.averageRating !== undefined
+          ? reviewStats.averageRating
+          : product?.rating || 0)
+      : 0;
   const categoryLabel = product?.categoryPill || product?.category || "";
   const skuCode = activeInventoryItem?.sku || product?.sku || "SUN-PROD";
   const productTags = Array.isArray(product?.tags) ? product.tags : [];
@@ -883,23 +886,32 @@ function ProductDetailsPage() {
 
                 {/* 3. Rating Row */}
                 <div className="mt-2 flex items-center gap-2 flex-wrap">
-                  <div className="flex items-center gap-0.5">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star
-                        key={i}
-                        className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${i < Math.floor(ratingVal)
-                            ? "fill-amber-400 text-amber-400"
-                            : "fill-neutral-200 text-neutral-200"
-                          }`}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-xs font-bold text-neutral-800">
-                    {Number(ratingVal).toFixed(1)}
-                  </span>
-                  <span className="text-xs text-neutral-400 font-medium">
-                    ({reviewsCountVal} {reviewsCountVal === 1 ? "review" : "reviews"})
-                  </span>
+                  {reviewsCountVal > 0 ? (
+                    <>
+                      <div className="flex items-center gap-0.5">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${
+                              i < Math.floor(ratingVal)
+                                ? "fill-amber-400 text-amber-400"
+                                : "fill-neutral-200 text-neutral-200"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-xs font-bold text-neutral-800">
+                        {Number(ratingVal).toFixed(1)}
+                      </span>
+                      <span className="text-xs text-neutral-400 font-medium">
+                        ({reviewsCountVal} {reviewsCountVal === 1 ? "review" : "reviews"})
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-xs font-medium text-neutral-400">
+                      No customer reviews yet
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1747,6 +1759,8 @@ function ProductDetailsPage() {
               </div>
             </section>
           )}
+          {/* Floating Product Video Player (Watch to Shop) */}
+          <ProductFloatingVideo product={product} />
         </main>
       )}
 

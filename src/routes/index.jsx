@@ -26,6 +26,7 @@ import SiteFooter from "@/components/SiteFooter.jsx";
 import ProductCard from "@/components/ProductCard.jsx";
 import HeroBannerSlider from "@/components/HeroBannerSlider.jsx";
 import CustomerReviewsCarousel from "@/components/CustomerReviewsCarousel.jsx";
+import WatchToShopSlider from "@/components/WatchToShopSlider.jsx";
 import {
   ageCategories,
   videoProducts,
@@ -33,10 +34,6 @@ import {
 
 
 import hero from "@/assets/hero-baby.jpg";
-import muslin from "@/assets/cat-muslin.jpg";
-import hospital from "@/assets/cat-hospital.jpg";
-import towels from "@/assets/cat-towels.jpg";
-import clothing from "@/assets/cat-clothing.jpg";
 
 import { useShop } from "@/context/ShopContext.jsx";
 
@@ -403,107 +400,10 @@ function Home() {
           )}
         </section>
 
-        {/* Essentials Grid */}
-        <section className="mx-auto max-w-7xl px-4 py-6">
-          <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-2">
-            <div className="card-lift relative overflow-hidden rounded-2xl sm:rounded-3xl border border-border bg-card">
-              <img src={muslin} alt="Swaddles" className="h-40 sm:h-56 md:h-64 w-full object-cover" />
-              <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 rounded-xl sm:rounded-2xl bg-card/90 px-3 py-1.5 sm:px-5 sm:py-2.5 shadow-md backdrop-blur-xs">
-                <h3 className="text-sm sm:text-lg font-extrabold">Swaddles</h3>
-              </div>
-            </div>
 
-            <div className="card-lift relative overflow-hidden rounded-2xl sm:rounded-3xl border border-border bg-card">
-              <img src={towels} alt="Towels" className="h-40 sm:h-56 md:h-64 w-full object-cover" />
-              <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 rounded-xl sm:rounded-2xl bg-card/90 px-3 py-1.5 sm:px-5 sm:py-2.5 shadow-md backdrop-blur-xs">
-                <h3 className="text-sm sm:text-lg font-extrabold">Towels</h3>
-              </div>
-            </div>
 
-            <div className="card-lift relative overflow-hidden rounded-2xl sm:rounded-3xl border border-border bg-card">
-              <img src={towels} alt="Hooded Towels" className="h-36 sm:h-48 md:h-56 w-full object-cover" />
-              <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 rounded-xl sm:rounded-2xl bg-card/90 px-3 py-1.5 sm:px-5 sm:py-2.5 shadow-md backdrop-blur-xs">
-                <h3 className="text-sm sm:text-lg font-extrabold">Hooded Towels</h3>
-              </div>
-            </div>
-
-            <div className="card-lift relative overflow-hidden rounded-2xl sm:rounded-3xl border border-border bg-card">
-              <img src={muslin} alt="Face Towels" className="h-36 sm:h-48 md:h-56 w-full object-cover" />
-              <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 rounded-xl sm:rounded-2xl bg-card/90 px-3 py-1.5 sm:px-5 sm:py-2.5 shadow-md backdrop-blur-xs">
-                <h3 className="text-sm sm:text-lg font-extrabold">Face Towels</h3>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Explore Our Product Videos */}
-        {videoProducts.length > 0 && (
-          <section className="bg-cream py-10 sm:py-14">
-            <div className="mx-auto max-w-7xl px-4">
-              <h2 className="text-center text-2xl font-extrabold sm:text-3xl">
-                Explore Our <span className="sun-underline">Product Videos</span>
-              </h2>
-
-              <div className="mt-6 sm:mt-10 grid grid-cols-2 gap-3 sm:gap-5 sm:grid-cols-3 lg:grid-cols-5">
-                {videoProducts.map((vp) => {
-                  const numPrice = Number(vp.price.replace(/[^0-9.]/g, "")) || 479;
-                  const numMrp = Number(vp.mrp.replace(/[^0-9.]/g, "")) || 599;
-                  const productObj = {
-                    id: `video-${vp.id}`,
-                    name: vp.title,
-                    price: numPrice,
-                    mrp: numMrp,
-                    image: vp.image,
-                  };
-                  const isWished = isWishlisted(productObj.id);
-
-                  return (
-                    <div key={vp.id} className="card-lift group relative overflow-hidden rounded-2xl border border-border bg-card">
-                      <div className="relative h-44 sm:h-56 md:h-64 w-full bg-muted">
-                        <img src={vp.image} alt={vp.title} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                        <div className="absolute inset-0 grid place-items-center bg-black/10">
-                          <div className="grid h-10 w-10 place-items-center rounded-full bg-sun text-sun-foreground shadow-md transition-transform group-hover:scale-110">
-                            <Play className="h-4 w-4 fill-current ml-0.5" />
-                          </div>
-                        </div>
-
-                        {/* Wishlist toggle */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            toggleWishlist(productObj);
-                          }}
-                          className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-background/80 backdrop-blur-md shadow-md transition-transform hover:scale-110 active:scale-95"
-                          aria-label="Wishlist toggle"
-                        >
-                          <Heart
-                            className={`h-4 w-4 transition-colors ${isWished
-                                ? "fill-destructive text-destructive"
-                                : "text-foreground/70 hover:text-destructive"
-                              }`}
-                          />
-                        </button>
-                      </div>
-
-                      <div className="p-3 text-center space-y-1.5">
-                        <h4 className="text-xs font-bold line-clamp-1">{vp.title}</h4>
-                        <p className="text-xs font-extrabold text-primary">{vp.price}</p>
-                        <button
-                          type="button"
-                          onClick={() => addToCart(productObj)}
-                          className="w-full rounded-full bg-primary py-1.5 text-xs font-bold text-primary-foreground transition-all hover:bg-primary/85 active:scale-98"
-                        >
-                          Add to cart
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-        )}
+        {/* Watch to Shop Interactive Video Slider */}
+        <WatchToShopSlider />
 
         {isShopByPrintEnabled && prints && prints.filter((p) => p.isActive !== false).length > 0 && (
           <section className="mx-auto max-w-7xl px-4 py-6">

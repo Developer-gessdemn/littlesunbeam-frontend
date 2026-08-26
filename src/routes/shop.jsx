@@ -9,6 +9,8 @@ import { useShop } from "@/context/ShopContext.jsx";
 
 export const Route = createFileRoute("/shop")({
   validateSearch: (search) => ({
+    q: typeof search.q === "string" ? search.q : typeof search.search === "string" ? search.search : undefined,
+    search: typeof search.search === "string" ? search.search : undefined,
     category: typeof search.category === "string" ? search.category : undefined,
     subCategory:
       typeof search.subCategory === "string"
@@ -30,7 +32,7 @@ export const Route = createFileRoute("/shop")({
       },
       { property: "og:title", content: "Shop Baby Essentials — Little Sunbeam" },
       {
-        property: "og:description",
+        name: "description",
         content: "Filter organic cotton baby products by category, subcategory, age, print and price.",
       },
     ],
@@ -44,6 +46,7 @@ function Shop() {
   const search = Route.useSearch();
   const { products, loadingProducts, prints, isShopByPrintEnabled, categories } = useShop();
 
+  const [searchQuery, setSearchQuery] = useState(search.q || search.search || "");
   const [selectedCats, setSelectedCats] = useState(
     search.category ? [search.category.toLowerCase()] : []
   );
@@ -67,6 +70,12 @@ function Shop() {
   const [openMobile, setOpenMobile] = useState(false);
 
   // Sync state if search params change
+  useEffect(() => {
+    if (search.q !== undefined || search.search !== undefined) {
+      setSearchQuery(search.q || search.search || "");
+    }
+  }, [search.q, search.search]);
+
   useEffect(() => {
     const paramsList = [];
     if (search.print) paramsList.push(search.print);
@@ -116,6 +125,7 @@ function Shop() {
   };
 
   const clearAll = () => {
+    setSearchQuery("");
     setSelectedCats([]);
     setSelectedSubCats([]);
     setSelectedAges([]);
@@ -125,6 +135,28 @@ function Shop() {
 
   const filtered = useMemo(() => {
     let list = (products || []).filter((p) => {
+      // 0. Search Query Match
+      if (searchQuery && searchQuery.trim()) {
+        const qWords = searchQuery.toLowerCase().trim().split(/\s+/);
+        const hay = [
+          p.name || "",
+          p.description || "",
+          p.category || "",
+          p.categoryPill || "",
+          p.subCategory || "",
+          p.print || "",
+          p.ageGroup || "",
+          p.age || "",
+          p.fabric || "",
+          Array.isArray(p.prints) ? p.prints.map((pr) => (typeof pr === "object" ? pr.name : pr)).join(" ") : "",
+          Array.isArray(p.colorVariants) ? p.colorVariants.map((cv) => cv.name).join(" ") : "",
+          Array.isArray(p.tags) ? p.tags.join(" ") : "",
+        ].join(" ").toLowerCase();
+
+        const match = qWords.every((w) => hay.includes(w));
+        if (!match) return false;
+      }
+
       // 1. Category Match
       const catMatch =
         selectedCats.length === 0 ||
@@ -242,9 +274,10 @@ function Shop() {
     if (sort === "high") list = [...list].sort((a, b) => Number(b.price) - Number(a.price));
     if (sort === "rating") list = [...list].sort((a, b) => (b.rating || 0) - (a.rating || 0));
     return list;
-  }, [products, selectedCats, selectedSubCats, selectedAges, selectedPrints, maxPrice, sort, prints, categories]);
+  }, [products, searchQuery, selectedCats, selectedSubCats, selectedAges, selectedPrints, maxPrice, sort, prints, categories]);
 
   const activeCount =
+    (searchQuery.trim() ? 1 : 0) +
     selectedCats.length +
     selectedSubCats.length +
     selectedAges.length +
@@ -415,6 +448,15 @@ function Shop() {
         {activeCount > 0 && (
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold text-muted-foreground">Active Filters:</span>
+            {searchQuery && searchQuery.trim() && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground px-3 py-1 text-xs font-bold hover:bg-primary/90 transition shadow-xs cursor-pointer"
+              >
+                <span>Search: "{searchQuery}"</span>
+                <X className="h-3 w-3" />
+              </button>
+            )}
             {selectedCats.map((cat) => {
               const catObj = (categories || []).find(
                 (c) => (c.slug || c.id || c.name || "").toLowerCase() === cat.toLowerCase()

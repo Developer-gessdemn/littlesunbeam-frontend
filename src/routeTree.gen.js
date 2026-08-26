@@ -12,6 +12,12 @@ import { Route as AdminRouteImport } from './routes/admin';
 import { Route as ProfileRouteImport } from './routes/profile';
 import { Route as CartRouteImport } from './routes/cart';
 import { Route as CheckoutRouteImport } from './routes/checkout';
+import { Route as ContactRouteImport } from './routes/contact';
+import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy';
+import { Route as ReturnCancellationRouteImport } from './routes/return-cancellation';
+import { Route as ShippingPolicyRouteImport } from './routes/shipping-policy';
+import { Route as SitemapRouteImport } from './routes/sitemap';
+import { Route as TermsConditionsRouteImport } from './routes/terms-conditions';
 
 const IndexRoute = IndexRouteImport.update({
     id: '/',
@@ -48,6 +54,37 @@ const CheckoutRoute = CheckoutRouteImport.update({
     path: '/checkout',
     getParentRoute: () => rootRouteImport,
 });
+const ContactRoute = ContactRouteImport.update({
+    id: '/contact',
+    path: '/contact',
+    getParentRoute: () => rootRouteImport,
+});
+const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
+    id: '/privacy-policy',
+    path: '/privacy-policy',
+    getParentRoute: () => rootRouteImport,
+});
+const ReturnCancellationRoute = ReturnCancellationRouteImport.update({
+    id: '/return-cancellation',
+    path: '/return-cancellation',
+    getParentRoute: () => rootRouteImport,
+});
+const ShippingPolicyRoute = ShippingPolicyRouteImport.update({
+    id: '/shipping-policy',
+    path: '/shipping-policy',
+    getParentRoute: () => rootRouteImport,
+});
+const SitemapRoute = SitemapRouteImport.update({
+    id: '/sitemap',
+    path: '/sitemap',
+    getParentRoute: () => rootRouteImport,
+});
+const TermsConditionsRoute = TermsConditionsRouteImport.update({
+    id: '/terms-conditions',
+    path: '/terms-conditions',
+    getParentRoute: () => rootRouteImport,
+});
+
 const rootRouteChildren = {
     IndexRoute: IndexRoute,
     ShopRoute: ShopRoute,
@@ -56,9 +93,14 @@ const rootRouteChildren = {
     ProfileRoute: ProfileRoute,
     CartRoute: CartRoute,
     CheckoutRoute: CheckoutRoute,
+    ContactRoute: ContactRoute,
+    PrivacyPolicyRoute: PrivacyPolicyRoute,
+    ReturnCancellationRoute: ReturnCancellationRoute,
+    ShippingPolicyRoute: ShippingPolicyRoute,
+    SitemapRoute: SitemapRoute,
+    TermsConditionsRoute: TermsConditionsRoute,
 };
+
 export const routeTree = rootRouteImport
     ._addFileChildren(rootRouteChildren)
     ._addFileTypes();
-
-

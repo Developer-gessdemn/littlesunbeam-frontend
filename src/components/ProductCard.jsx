@@ -164,23 +164,31 @@ export default function ProductCard({ product }) {
           {product.name}
         </Link>
 
-        {/* Stars */}
-        <div className="flex items-center gap-1">
-          <div className="flex items-center gap-0.5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star
-                key={i}
-                className={`h-2 w-2 sm:h-2.5 sm:w-2.5 ${
-                  i < Math.floor(product.rating || 5)
-                    ? "fill-amber-400 text-amber-400"
-                    : "fill-neutral-200 text-neutral-200"
-                }`}
-              />
-            ))}
-          </div>
-          <span className="text-[8px] text-muted-foreground font-medium sm:text-[9px]">
-            ({Number(product.rating || 5.0).toFixed(1)})
-          </span>
+        {/* Stars / Reviews */}
+        <div className="flex items-center gap-1 min-h-[14px]">
+          {Number(product.reviewCount) > 0 ? (
+            <>
+              <div className="flex items-center gap-0.5">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star
+                    key={i}
+                    className={`h-2 w-2 sm:h-2.5 sm:w-2.5 ${
+                      i < Math.floor(product.rating || 0)
+                        ? "fill-amber-400 text-amber-400"
+                        : "fill-neutral-200 text-neutral-200"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-[8px] text-muted-foreground font-medium sm:text-[9px]">
+                ({Number(product.rating || 0).toFixed(1)})
+              </span>
+            </>
+          ) : (
+            <span className="text-[8px] text-muted-foreground/60 font-medium sm:text-[9px]">
+              No reviews yet
+            </span>
+          )}
         </div>
 
         {/* Price row */}

@@ -138,6 +138,10 @@ export const normalizeProduct = (p) => {
     image: activeMainImg,
     gallery: activeGallery,
     images: p.images || { main: activeMainImg, front: "", back: "", side: "", model: "", additional: [] },
+    video: p.video || (Array.isArray(p.videos) && p.videos[0]) || "",
+    videos: Array.isArray(p.videos) && p.videos.length > 0
+      ? p.videos.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean)
+      : (p.video && String(p.video).trim() ? [String(p.video).trim()] : []),
     colorVariants: normalizedColorVariants,
     variants: Array.isArray(p.variants) ? p.variants : [],
     colors: extractedColors,
@@ -154,7 +158,7 @@ export const normalizeProduct = (p) => {
     returnEligibility: p.returnEligibility || "7-Day Return & Exchange Available",
     badge: p.badge || "",
     status: p.status || "Active",
-    rating: Number(p.rating) || 5.0,
+    rating: p.rating !== undefined ? Number(p.rating) : 0,
     reviewCount: Number(p.reviewCount) || 0,
     description: p.description || "",
     details: p.details || "",

@@ -83,8 +83,8 @@ export default function QuickViewModal({ product, open, onClose }) {
 
   // Early return AFTER all hooks
   if (!open || !product) return null;
-  const ratingVal = Number(product.rating || 5.0).toFixed(1);
   const reviewsCountVal = product.reviewCount !== undefined ? Number(product.reviewCount) : 0;
+  const ratingVal = reviewsCountVal > 0 ? Number(product.rating || 0).toFixed(1) : "0.0";
   const categoryLabel = product.categoryPill || product.category || "Baby Essentials";
   const skuCode = product.sku || `SUN-${product.id || product._id}`;
   const productTags = Array.isArray(product.tags) ? product.tags : ["Baby", "Cotton", "Organic"];
@@ -256,17 +256,23 @@ export default function QuickViewModal({ product, open, onClose }) {
                 )}
                 {activeTab === "Reviews" && (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-3 rounded-xl bg-neutral-50 p-3 border border-neutral-200">
-                      <span className="text-xl sm:text-2xl font-extrabold text-black">{ratingVal}</span>
-                      <div>
-                        <div className="flex gap-0.5">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                          ))}
+                    {reviewsCountVal > 0 ? (
+                      <div className="flex items-center gap-3 rounded-xl bg-neutral-50 p-3 border border-neutral-200">
+                        <span className="text-xl sm:text-2xl font-extrabold text-black">{ratingVal}</span>
+                        <div>
+                          <div className="flex gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star key={i} className={`h-3.5 w-3.5 ${i < Math.floor(Number(ratingVal)) ? "fill-amber-400 text-amber-400" : "fill-neutral-200 text-neutral-200"}`} />
+                            ))}
+                          </div>
+                          <span className="text-[11px] text-neutral-500">Based on {reviewsCountVal} {reviewsCountVal === 1 ? "review" : "reviews"}</span>
                         </div>
-                        <span className="text-[11px] text-neutral-500">Based on {reviewsCountVal} reviews</span>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="rounded-xl bg-neutral-50 p-4 border border-dashed border-neutral-200 text-center text-neutral-500 text-xs font-medium">
+                        No customer reviews yet.
+                      </div>
+                    )}
                   </div>
                 )}
                 {activeTab === "Discussion" && (
@@ -302,21 +308,29 @@ export default function QuickViewModal({ product, open, onClose }) {
 
               {/* Rating */}
               <div className="mt-1.5 flex items-center gap-2">
-                <div className="flex gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${
-                        i < Math.floor(Number(ratingVal))
-                          ? "fill-amber-400 text-amber-400"
-                          : "fill-neutral-200 text-neutral-200"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className="text-[11px] sm:text-xs font-semibold text-neutral-500">
-                  ({ratingVal} from {reviewsCountVal} {reviewsCountVal === 1 ? "Review" : "Reviews"})
-                </span>
+                {reviewsCountVal > 0 ? (
+                  <>
+                    <div className="flex gap-0.5">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${
+                            i < Math.floor(Number(ratingVal))
+                              ? "fill-amber-400 text-amber-400"
+                              : "fill-neutral-200 text-neutral-200"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-[11px] sm:text-xs font-semibold text-neutral-500">
+                      ({ratingVal} from {reviewsCountVal} {reviewsCountVal === 1 ? "Review" : "Reviews"})
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-[11px] sm:text-xs font-medium text-neutral-400">
+                    No reviews yet
+                  </span>
+                )}
               </div>
             </div>
 

@@ -246,3 +246,31 @@
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* Continuous Smooth Infinite Marquee Animation for Reviews & Sliders */
+@keyframes smooth-marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.animate-smooth-marquee {
+  display: flex;
+  width: max-content;
+  animation: smooth-marquee 42s linear infinite;
+  will-change: transform;
+}
+
+.marquee-wrapper:hover .animate-smooth-marquee,
+.animate-smooth-marquee:hover {
+  animation-play-state: paused;
+}
+
+@media (max-width: 640px) {
+  .animate-smooth-marquee {
+    animation-duration: 28s;
+  }
+}

@@ -769,7 +769,7 @@ export const adminService = {
     }
   },
 
-  // 7. File Upload
+  // 7. File & Video Upload
   async uploadImage(file) {
     try {
       const { token } = getAdminAuth();
@@ -797,6 +797,70 @@ export const adminService = {
         reader.onerror = () => reject(err);
         reader.readAsDataURL(file);
       });
+    }
+  },
+
+  async uploadVideo(file) {
+    try {
+      const { token } = getAdminAuth();
+      const formData = new FormData();
+      formData.append("video", file);
+
+      const res = await fetch(`${API_BASE_URL}/upload/video`, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to upload video");
+      }
+      return data.data?.url || data.url;
+    } catch (err) {
+      // Fallback to local Object URL / Base64 if backend upload fails
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(err);
+        reader.readAsDataURL(file);
+      });
+    }
+  },
+
+  async uploadMultipleVideos(files) {
+    try {
+      const { token } = getAdminAuth();
+      const formData = new FormData();
+      files.forEach((f) => formData.append("videos", f));
+
+      const res = await fetch(`${API_BASE_URL}/upload/videos`, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to upload videos");
+      }
+      return data.data?.urls || data.urls || [];
+    } catch (err) {
+      return Promise.all(
+        files.map(
+          (file) =>
+            new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = () => reject(err);
+              reader.readAsDataURL(file);
+            })
+        )
+      );
     }
   },
 

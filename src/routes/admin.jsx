@@ -51,6 +51,13 @@ import {
   Cloud,
   ArrowLeft,
   ArrowRight,
+  Video,
+  Play,
+  Film,
+  Volume2,
+  VolumeX,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import {
   AreaChart,
@@ -257,8 +264,11 @@ function AdminPage() {
 
   // Upload States
   const [productImageUploading, setProductImageUploading] = useState(false);
+  const [productVideoUploading, setProductVideoUploading] = useState(false);
+  const [videoInputUrl, setVideoInputUrl] = useState("");
   const [categoryImageUploading, setCategoryImageUploading] = useState(false);
   const productFileInputRef = useRef(null);
+  const productVideoFileInputRef = useRef(null);
   const categoryFileInputRef = useRef(null);
 
   // Filters & Search
@@ -456,6 +466,8 @@ function AdminPage() {
       stockStatus: "In Stock",
       image: "",
       gallery: [],
+      video: "",
+      videos: [],
       // Color-based Product Variants (Color -> Images + Sizes + Size-wise Inventory)
       colorVariants: [
         {
@@ -779,11 +791,115 @@ function AdminPage() {
     }
   };
 
+  // Product Video Upload & Management (Watch to Shop)
+  const handleProductVideoUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      const ext = file.name.split(".").pop().toLowerCase();
+      const validExt = ["mp4", "mov", "webm", "m4v"].includes(ext);
+      const validMime = file.type.startsWith("video/") || file.type.includes("mp4") || file.type.includes("quicktime") || file.type.includes("webm");
+      if (!validExt && !validMime) {
+        alert(`Invalid video format for "${file.name}". Supported formats: MP4, MOV, WebM.`);
+        return;
+      }
+      if (file.size > 100 * 1024 * 1024) {
+        alert(`Video "${file.name}" exceeds 100MB limit. Please choose a smaller video.`);
+        return;
+      }
+    }
+
+    setProductVideoUploading(true);
+    try {
+      let uploadedUrls = [];
+      if (files.length === 1) {
+        const url = await adminService.uploadVideo(files[0]);
+        if (url) uploadedUrls.push(url);
+      } else {
+        const urls = await adminService.uploadMultipleVideos(files);
+        uploadedUrls = Array.isArray(urls) ? urls : [urls];
+      }
+
+      if (uploadedUrls.length > 0) {
+        setProductForm((prev) => {
+          const prevVideos = Array.isArray(prev.videos) ? prev.videos : (prev.video ? [prev.video] : []);
+          const combined = Array.from(new Set([...prevVideos, ...uploadedUrls])).filter(Boolean);
+          const primary = prev.video || combined[0] || "";
+          return {
+            ...prev,
+            video: primary,
+            videos: combined,
+          };
+        });
+        showNotification(`🎬 Successfully uploaded ${uploadedUrls.length} product video(s)!`);
+      }
+    } catch (err) {
+      alert("Failed to upload video: " + (err.message || "Unknown error"));
+    } finally {
+      setProductVideoUploading(false);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleAddVideoUrl = () => {
+    const url = (videoInputUrl || "").trim();
+    if (!url) return;
+    if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("data:") && !url.startsWith("blob:")) {
+      alert("Please enter a valid video URL starting with https:// or http://");
+      return;
+    }
+
+    setProductForm((prev) => {
+      const prevVideos = Array.isArray(prev.videos) ? prev.videos : (prev.video ? [prev.video] : []);
+      if (prevVideos.includes(url)) {
+        alert("This video URL is already added to this product.");
+        return prev;
+      }
+      const combined = [...prevVideos, url];
+      return {
+        ...prev,
+        video: prev.video || url,
+        videos: combined,
+      };
+    });
+    setVideoInputUrl("");
+    showNotification("🎬 Video URL added to product!");
+  };
+
+  const handleRemoveVideo = (idx) => {
+    setProductForm((prev) => {
+      const prevVideos = Array.isArray(prev.videos) ? prev.videos : (prev.video ? [prev.video] : []);
+      const updated = prevVideos.filter((_, i) => i !== idx);
+      const nextPrimary = updated.includes(prev.video) ? prev.video : (updated[0] || "");
+      return {
+        ...prev,
+        video: nextPrimary,
+        videos: updated,
+      };
+    });
+    showNotification("Video removed from product.");
+  };
+
+  const handleSetPrimaryVideo = (idx) => {
+    setProductForm((prev) => {
+      const prevVideos = Array.isArray(prev.videos) ? prev.videos : (prev.video ? [prev.video] : []);
+      const selected = prevVideos[idx];
+      if (!selected) return prev;
+      return {
+        ...prev,
+        video: selected,
+      };
+    });
+    showNotification("⭐ Set as main Watch to Shop video!");
+  };
+
   // Product Actions
   const handleOpenAddProduct = () => {
     setEditingProduct(null);
     setFormError("");
     setProductModalTab("basic");
+    setVideoInputUrl("");
     setProductForm(createInitialProductForm());
     setProductModalOpen(true);
   };
@@ -868,6 +984,12 @@ function AdminPage() {
       });
     }
 
+    const existingVideos = Array.isArray(p.videos) && p.videos.length > 0
+      ? p.videos.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean)
+      : (p.video ? [p.video.trim()] : []);
+    const mainVideo = p.video || existingVideos[0] || "";
+    setVideoInputUrl("");
+
     setProductForm({
       name: p.name || "",
       sku: p.sku || "",
@@ -896,6 +1018,8 @@ function AdminPage() {
       stockStatus: p.stockStatus || getStockStatus(p.stock, p.lowStockThreshold),
       image: mainImage,
       gallery: Array.isArray(p.gallery) ? p.gallery : (mainImage ? [mainImage] : []),
+      video: mainVideo,
+      videos: existingVideos,
       colorVariants: loadedColorVariants,
       careInstructions: p.careInstructions || "Machine wash cold with gentle baby detergent. Do not bleach. Tumble dry low.",
       washCare: p.washCare || "Gentle Hand/Machine Wash",
@@ -1013,6 +1137,10 @@ function AdminPage() {
         subCategoryId: typeof selectedSubCatObj === "object" && selectedSubCatObj._id ? selectedSubCatObj._id : (productForm.subCategoryId || undefined),
         image: mainImage,
         gallery: uniqueGallery.length > 0 ? uniqueGallery : [mainImage],
+        video: productForm.video || (Array.isArray(productForm.videos) && productForm.videos[0]) || "",
+        videos: Array.isArray(productForm.videos)
+          ? productForm.videos.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean)
+          : (productForm.video ? [productForm.video.trim()] : []),
         colorVariants: productForm.colorVariants,
         prints: Array.isArray(productForm.prints) ? productForm.prints : [],
         print: (productForm.prints && productForm.prints.length > 0 ? String(productForm.prints[0]) : productForm.print) || "",
@@ -2136,8 +2264,13 @@ function AdminPage() {
                                     )}
                                     <div>
                                       <p className="font-bold text-foreground line-clamp-1">{p.name}</p>
-                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                         <span className="text-[11px] font-mono text-muted-foreground">{p.sku || "NO-SKU"}</span>
+                                        {((p.videos && p.videos.length > 0) || p.video) && (
+                                          <span className="inline-flex items-center gap-1 rounded-full bg-fuchsia-500/10 text-fuchsia-600 border border-fuchsia-500/20 px-2 py-0.5 text-[9px] font-black uppercase">
+                                            <Video className="h-2.5 w-2.5" /> Watch to Shop
+                                          </span>
+                                        )}
                                         {p.badge && (
                                           <span className="rounded-full bg-primary/10 px-2 py-0.2 text-[9px] font-black text-primary uppercase">
                                             {p.badge}
@@ -4100,6 +4233,7 @@ function AdminPage() {
                   { id: "basic", label: "Basic Info *", icon: Package },
                   { id: "clothing", label: "Baby Specs", icon: Layers },
                   { id: "variants", label: `Colors & Variants * (${productForm.colorVariants?.length || 1})`, icon: Boxes },
+                  { id: "videos", label: `Product Videos (${(Array.isArray(productForm.videos) ? productForm.videos.filter(Boolean).length : (productForm.video ? 1 : 0))})`, icon: Video },
                   { id: "pricing", label: "Pricing & Stock *", icon: IndianRupee },
                   { id: "extra", label: "Additional Info", icon: CheckCircle2 },
                 ].map((tab) => {
@@ -4909,6 +5043,252 @@ function AdminPage() {
                   </div>
                 )}
 
+                {/* ── TAB: PRODUCT VIDEOS (WATCH TO SHOP) ── */}
+                {productModalTab === "videos" && (
+                  <div className="space-y-6 animate-in fade-in duration-150" id="section-product-videos">
+                    {/* Header Banner */}
+                    <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/10 via-fuchsia-500/10 to-amber-500/10 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-2xl bg-primary text-primary-foreground grid place-items-center shrink-0 shadow-md">
+                          <Film className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-black text-foreground flex items-center gap-2">
+                            <span>Product Video Management</span>
+                            <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-black text-primary uppercase">
+                              Watch to Shop
+                            </span>
+                          </h3>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Upload product video reels (MP4, MOV, WebM). Only products with uploaded videos will appear in the <strong>Watch to Shop</strong> sections.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-black text-foreground shadow-2xs">
+                          {(Array.isArray(productForm.videos) ? productForm.videos.filter(Boolean).length : (productForm.video ? 1 : 0))} Video(s)
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Video Upload & URL Input Area */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Upload Box */}
+                      <div className="rounded-2xl border-2 border-dashed border-border bg-muted/20 p-5 flex flex-col items-center justify-center text-center hover:border-primary/60 transition group">
+                        <input
+                          type="file"
+                          ref={productVideoFileInputRef}
+                          accept="video/mp4,video/quicktime,video/webm,video/m4v,.mp4,.mov,.webm"
+                          multiple
+                          onChange={handleProductVideoUpload}
+                          className="hidden"
+                          id="product-video-file-input"
+                        />
+
+                        <div className="h-12 w-12 rounded-2xl bg-muted grid place-items-center text-primary group-hover:scale-110 transition-transform mb-3 shadow-2xs">
+                          {productVideoUploading ? (
+                            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                          ) : (
+                            <Upload className="h-6 w-6" />
+                          )}
+                        </div>
+
+                        <h4 className="text-xs font-black text-foreground">
+                          {productVideoUploading ? "Uploading video(s)..." : "Upload Video Files"}
+                        </h4>
+                        <p className="text-[11px] text-muted-foreground mt-1 max-w-xs">
+                          Supported formats: <strong>MP4, MOV, WebM</strong>. Up to 100MB per video.
+                        </p>
+
+                        <button
+                          type="button"
+                          disabled={productVideoUploading}
+                          onClick={() => productVideoFileInputRef.current?.click()}
+                          className="mt-4 flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                        >
+                          {productVideoUploading ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <span>Uploading to Cloud CDN...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="h-3.5 w-3.5" />
+                              <span>Select Video(s) to Upload</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Direct URL Box */}
+                      <div className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between space-y-3">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                              <Cloud className="h-3.5 w-3.5 text-primary" />
+                              <span>Or Add Video by URL</span>
+                            </label>
+                            <span className="text-[10px] text-muted-foreground">Cloudinary, S3, MP4</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            Paste a direct link to any MP4, MOV, or WebM video hosted online.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <input
+                            type="url"
+                            value={videoInputUrl}
+                            onChange={(e) => setVideoInputUrl(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAddVideoUrl();
+                              }
+                            }}
+                            placeholder="https://.../video.mp4 or https://res.cloudinary.com/..."
+                            className="w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:bg-background transition"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddVideoUrl}
+                            disabled={!videoInputUrl.trim()}
+                            className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-secondary hover:bg-secondary/80 px-4 py-2 text-xs font-bold text-foreground border border-border transition disabled:opacity-50 cursor-pointer"
+                          >
+                            <Plus className="h-3.5 w-3.5 text-primary" />
+                            <span>Add Video Link</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Uploaded Videos Gallery */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Video className="h-3.5 w-3.5 text-primary" />
+                          <span>Uploaded Product Videos ({Array.isArray(productForm.videos) ? productForm.videos.filter(Boolean).length : (productForm.video ? 1 : 0)})</span>
+                        </h4>
+                        {productForm.videos && productForm.videos.length > 1 && (
+                          <span className="text-[11px] text-muted-foreground">
+                            First video or starred video is used as Primary for Watch to Shop.
+                          </span>
+                        )}
+                      </div>
+
+                      {(!productForm.videos || productForm.videos.length === 0) && !productForm.video ? (
+                        <div className="rounded-2xl border border-dashed border-border bg-muted/10 p-8 text-center space-y-2">
+                          <div className="mx-auto h-12 w-12 rounded-full bg-muted/60 grid place-items-center text-muted-foreground">
+                            <Film className="h-6 w-6 opacity-60" />
+                          </div>
+                          <p className="text-xs font-bold text-foreground">No videos uploaded for this product yet</p>
+                          <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
+                            Upload an MP4, MOV, or WebM video to automatically enable this product in the <strong>Watch to Shop</strong> carousel on the homepage and the floating player on the product page.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {(Array.isArray(productForm.videos) && productForm.videos.length > 0
+                            ? productForm.videos
+                            : [productForm.video]
+                          )
+                            .filter(Boolean)
+                            .map((vUrl, vIdx) => {
+                              const isPrimary = productForm.video === vUrl || (!productForm.video && vIdx === 0);
+                              const ext = vUrl.split(".").pop().split("?")[0].toUpperCase();
+                              const formatTag = ["MP4", "MOV", "WEBM", "M4V"].includes(ext) ? ext : "VIDEO";
+
+                              return (
+                                <div
+                                  key={vUrl + vIdx}
+                                  className={`group relative rounded-2xl border overflow-hidden bg-card transition shadow-sm ${
+                                    isPrimary
+                                      ? "border-primary ring-2 ring-primary/20"
+                                      : "border-border hover:border-border/80"
+                                  }`}
+                                >
+                                  {/* Video Player Preview */}
+                                  <div className="relative aspect-[9/12] sm:aspect-[9/14] max-h-64 w-full bg-black overflow-hidden flex items-center justify-center">
+                                    <video
+                                      src={vUrl}
+                                      controls
+                                      muted
+                                      loop
+                                      playsInline
+                                      preload="metadata"
+                                      className="h-full w-full object-cover"
+                                      onError={(e) => {
+                                        console.warn("Video preview error:", vUrl);
+                                      }}
+                                    />
+
+                                    {/* Format Badge */}
+                                    <div className="absolute top-2 left-2 flex items-center gap-1 z-10">
+                                      <span className="rounded-md bg-black/70 backdrop-blur-xs px-2 py-0.5 text-[9px] font-black text-white uppercase tracking-wider">
+                                        {formatTag}
+                                      </span>
+                                      {isPrimary && (
+                                        <span className="rounded-md bg-primary text-primary-foreground px-2 py-0.5 text-[9px] font-black uppercase tracking-wider shadow-xs">
+                                          ⭐ Main Video
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Delete Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveVideo(vIdx)}
+                                      className="absolute top-2 right-2 z-10 rounded-full bg-black/70 hover:bg-destructive text-white p-1.5 backdrop-blur-xs transition shadow-md cursor-pointer"
+                                      title="Remove Video"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+
+                                  {/* Card Footer Controls */}
+                                  <div className="p-3 bg-card border-t border-border space-y-2">
+                                    <div className="flex items-center justify-between text-[11px]">
+                                      <span className="font-mono text-muted-foreground truncate max-w-[150px]" title={vUrl}>
+                                        Video #{vIdx + 1}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          navigator.clipboard?.writeText(vUrl);
+                                          showNotification("Copied video URL to clipboard!");
+                                        }}
+                                        className="text-[10px] text-muted-foreground hover:text-primary transition flex items-center gap-1 cursor-pointer"
+                                      >
+                                        <Copy className="h-3 w-3" /> Copy URL
+                                      </button>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 pt-1">
+                                      {!isPrimary ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSetPrimaryVideo(vIdx)}
+                                          className="w-full flex items-center justify-center gap-1 rounded-xl bg-muted hover:bg-primary/10 hover:text-primary py-1.5 text-[11px] font-bold text-foreground transition cursor-pointer"
+                                        >
+                                          <Star className="h-3 w-3" /> Set as Main Video
+                                        </button>
+                                      ) : (
+                                        <div className="w-full flex items-center justify-center gap-1 rounded-xl bg-primary/10 py-1.5 text-[11px] font-black text-primary">
+                                          <Check className="h-3 w-3" /> Primary Watch to Shop Video
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* ── TAB 4: PRICING & STOCK CALCULATION ── */}
                 {productModalTab === "pricing" && (
                   <div className="space-y-5 animate-in fade-in duration-150">
@@ -5199,7 +5579,7 @@ function AdminPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          const tabs = ["basic", "clothing", "pricing", "images", "variants", "extra"];
+                          const tabs = ["basic", "clothing", "variants", "videos", "pricing", "extra"];
                           const currIdx = tabs.indexOf(productModalTab);
                           if (currIdx > 0) setProductModalTab(tabs[currIdx - 1]);
                         }}
@@ -5213,7 +5593,7 @@ function AdminPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          const tabs = ["basic", "clothing", "pricing", "images", "variants", "extra"];
+                          const tabs = ["basic", "clothing", "variants", "videos", "pricing", "extra"];
                           const currIdx = tabs.indexOf(productModalTab);
                           if (currIdx < tabs.length - 1) setProductModalTab(tabs[currIdx + 1]);
                         }}
