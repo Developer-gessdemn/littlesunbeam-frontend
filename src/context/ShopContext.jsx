@@ -117,6 +117,7 @@ export const normalizeProduct = (p) => {
     name: p.name || "",
     price: priceNum,
     mrp: mrpNum,
+    manufacturingCost: p.manufacturingCost !== undefined ? Number(p.manufacturingCost) : 0,
     discount: discountNum,
     gst: p.gst !== undefined ? Number(p.gst) : 5,
     category: (p.category || "").toLowerCase(),
@@ -138,6 +139,7 @@ export const normalizeProduct = (p) => {
     image: activeMainImg,
     gallery: activeGallery,
     images: p.images || { main: activeMainImg, front: "", back: "", side: "", model: "", additional: [] },
+    sizeChartImage: p.sizeChartImage || "",
     video: p.video || (Array.isArray(p.videos) && p.videos[0]) || "",
     videos: Array.isArray(p.videos) && p.videos.length > 0
       ? p.videos.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean)
@@ -543,6 +545,81 @@ export function ShopProvider({ children }) {
     } catch { }
   };
 
+  // ─── Site Settings (COD enabled, etc.) ────────────────────────────────────
+  const SETTINGS_KEY = "little_sunbeam_settings";
+  const COD_KEY = "little_sunbeam_cod_enabled";
+
+  const getInitialCodStatus = () => {
+    try {
+      const explicit = localStorage.getItem(COD_KEY);
+      if (explicit !== null) return explicit === "true";
+      const stored = localStorage.getItem(SETTINGS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.codEnabled === "boolean") return parsed.codEnabled;
+      }
+    } catch { }
+    return true;
+  };
+
+  const [siteSettings, setSiteSettingsState] = useState(() => {
+    return { codEnabled: getInitialCodStatus() };
+  });
+
+  const fetchLiveSettings = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings`);
+      if (!res.ok) throw new Error("Failed to fetch settings");
+      const data = await res.json();
+      if (data?.data && typeof data.data.codEnabled === "boolean") {
+        setSiteSettingsState(data.data);
+        try {
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(data.data));
+          localStorage.setItem(COD_KEY, String(data.data.codEnabled));
+        } catch { }
+        return;
+      }
+    } catch {
+      // Offline fallback: load from local storage
+      try {
+        const isEnabled = getInitialCodStatus();
+        setSiteSettingsState({ codEnabled: isEnabled });
+      } catch { }
+    }
+  }, []);
+
+  const setCodEnabled = (enabled) => {
+    const isEnabled = Boolean(enabled);
+    const nextSettings = { codEnabled: isEnabled };
+    setSiteSettingsState(nextSettings);
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(nextSettings));
+      localStorage.setItem(COD_KEY, String(isEnabled));
+      window.dispatchEvent(new CustomEvent("settings_updated", { detail: nextSettings }));
+      window.dispatchEvent(new CustomEvent("cod_updated", { detail: isEnabled }));
+    } catch { }
+
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("little_sunbeam_broadcast_channel");
+        bc.postMessage({ type: "COD_UPDATED", codEnabled: isEnabled });
+        bc.close();
+      }
+    } catch { }
+
+    const adminToken = localStorage.getItem("little_sunbeam_admin_token") || localStorage.getItem("adminToken");
+    if (adminToken) {
+      fetch(`${API_BASE_URL}/settings`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ codEnabled: isEnabled }),
+      }).catch(() => { });
+    }
+  };
+
   const fetchLiveProducts = useCallback(async () => {
     try {
       setLoadingProducts(true);
@@ -585,10 +662,19 @@ export function ShopProvider({ children }) {
     fetchLivePrints();
     fetchLiveCategories();
     fetchLiveHeroBanners();
+    fetchLiveSettings();
 
-    // Listen for product updates, print updates, and category updates in real-time
+    // Listen for product updates, print updates, category updates, and settings updates in real-time
     const handleProductsUpdated = () => {
       fetchLiveProducts();
+    };
+
+    const handleSettingsUpdated = (e) => {
+      if (e?.detail) {
+        setSiteSettingsState(e.detail);
+      } else {
+        fetchLiveSettings();
+      }
     };
 
     const handleHeroBannersUpdated = () => {
@@ -629,7 +715,13 @@ export function ShopProvider({ children }) {
     window.addEventListener("prints_updated", handlePrintsUpdated);
     window.addEventListener("categories_updated", handleCategoriesUpdated);
     window.addEventListener("hero_banners_updated", handleHeroBannersUpdated);
+    window.addEventListener("settings_updated", handleSettingsUpdated);
     window.addEventListener("storage", (e) => {
+      if (e.key === SETTINGS_KEY && e.newValue) {
+        try {
+          setSiteSettingsState(JSON.parse(e.newValue));
+        } catch { }
+      }
       if (e.key === HERO_BANNERS_KEY && e.newValue) {
         try {
           setHeroBannersState(JSON.parse(e.newValue));
@@ -658,9 +750,10 @@ export function ShopProvider({ children }) {
       window.removeEventListener("prints_updated", handlePrintsUpdated);
       window.removeEventListener("categories_updated", handleCategoriesUpdated);
       window.removeEventListener("hero_banners_updated", handleHeroBannersUpdated);
+      window.removeEventListener("settings_updated", handleSettingsUpdated);
       window.removeEventListener("storage", handleProductsUpdated);
     };
-  }, [fetchLiveProducts, fetchLivePrints, fetchLiveCategories, fetchLiveHeroBanners]);
+  }, [fetchLiveProducts, fetchLivePrints, fetchLiveCategories, fetchLiveHeroBanners, fetchLiveSettings]);
 
   // ─── Customer Auth state ──────────────────────────────────────────────────
   const [customerAuth, setCustomerAuth] = useState(getStoredCustomer);
@@ -1295,6 +1388,11 @@ export function ShopProvider({ children }) {
         categories,
         setCategories,
         refreshCategories: fetchLiveCategories,
+        // Site Settings (COD toggle, etc.)
+        siteSettings,
+        codEnabled: siteSettings.codEnabled !== false,
+        setCodEnabled,
+        refreshSettings: fetchLiveSettings,
       }}
     >
       {children}

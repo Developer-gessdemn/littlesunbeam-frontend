@@ -58,6 +58,10 @@ import {
   VolumeX,
   Maximize2,
   Minimize2,
+  Banknote,
+  Ruler,
+  Tag,
+  Star,
 } from "lucide-react";
 import {
   AreaChart,
@@ -107,6 +111,9 @@ function AdminPage() {
     setPrints,
     isShopByPrintEnabled,
     setShopByPrintEnabled,
+    codEnabled,
+    setCodEnabled,
+    refreshSettings,
   } = useShop();
 
   // Print management state
@@ -266,10 +273,12 @@ function AdminPage() {
   // Upload States
   const [productImageUploading, setProductImageUploading] = useState(false);
   const [productVideoUploading, setProductVideoUploading] = useState(false);
+  const [sizeChartImageUploading, setSizeChartImageUploading] = useState(false);
   const [videoInputUrl, setVideoInputUrl] = useState("");
   const [categoryImageUploading, setCategoryImageUploading] = useState(false);
   const productFileInputRef = useRef(null);
   const productVideoFileInputRef = useRef(null);
+  const sizeChartFileInputRef = useRef(null);
   const categoryFileInputRef = useRef(null);
 
   // Filters & Search
@@ -376,7 +385,7 @@ function AdminPage() {
   };
 
   const GENDERS = ["Boy", "Girl", "Unisex"];
-  const AGE_GROUPS = [
+  const DEFAULT_AGE_GROUPS = [
     "Newborn",
     "0 - 3 Months",
     "3 - 6 Months",
@@ -387,7 +396,8 @@ function AdminPage() {
     "4 - 5 Years",
     "5 - 6 Years",
   ];
-  const AVAILABLE_SIZES = [
+  const DEFAULT_AVAILABLE_SIZES = [
+    "Free Size",
     "Newborn",
     "0 - 3 Months",
     "3 - 6 Months",
@@ -398,6 +408,31 @@ function AdminPage() {
     "4 - 5 Years",
     "5 - 6 Years",
   ];
+
+  // Custom Age Groups state
+  const [customAgeGroups, setCustomAgeGroups] = useState(() => {
+    try {
+      const saved = localStorage.getItem("lsb_custom_age_groups");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [newAgeGroupInput, setNewAgeGroupInput] = useState("");
+  const [showAddAgeGroupInput, setShowAddAgeGroupInput] = useState(false);
+
+  // Custom Sizes state
+  const [customSizes, setCustomSizes] = useState(() => {
+    try {
+      const saved = localStorage.getItem("lsb_custom_sizes");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [newSizeInput, setNewSizeInput] = useState("");
+  const [showAddSizeInput, setShowAddSizeInput] = useState(false);
+  const [activeSizeColorIndex, setActiveSizeColorIndex] = useState(null);
   const POPULAR_COLORS = [
     { name: "Blue", hex: "#3B82F6" },
     { name: "Orange", hex: "#F97316" },
@@ -460,6 +495,7 @@ function AdminPage() {
       season: "",
       price: "",
       mrp: "",
+      manufacturingCost: "",
       discount: 0,
       gst: 5,
       lowStockThreshold: 10,
@@ -467,6 +503,7 @@ function AdminPage() {
       stockStatus: "In Stock",
       image: "",
       gallery: [],
+      sizeChartImage: "",
       video: "",
       videos: [],
       // Color-based Product Variants (Color -> Images + Sizes + Size-wise Inventory)
@@ -504,6 +541,108 @@ function AdminPage() {
     setTimeout(() => setNotification(null), 4000);
   };
 
+  // Memoized Age Groups list (Defaults + Custom + Existing Product Age Group)
+  const allAgeGroups = useMemo(() => {
+    const combined = [...DEFAULT_AGE_GROUPS, ...customAgeGroups];
+    if (productForm.ageGroup && !combined.includes(productForm.ageGroup)) {
+      combined.push(productForm.ageGroup);
+    }
+    return Array.from(new Set(combined.filter(Boolean)));
+  }, [customAgeGroups, productForm.ageGroup]);
+
+  // Memoized Available Sizes list (Defaults + Custom + Existing Variants Sizes)
+  const allAvailableSizes = useMemo(() => {
+    const combined = [...DEFAULT_AVAILABLE_SIZES, ...customSizes];
+    (productForm.colorVariants || []).forEach((cv) => {
+      (cv.sizes || []).forEach((sz) => {
+        if (sz && !combined.includes(sz)) {
+          combined.push(sz);
+        }
+      });
+    });
+    return Array.from(new Set(combined.filter(Boolean)));
+  }, [customSizes, productForm.colorVariants]);
+
+  // Add Custom Age Group Handler
+  const handleAddCustomAgeGroup = (val) => {
+    const trimmed = (val || newAgeGroupInput).trim();
+    if (!trimmed) return;
+    if (!allAgeGroups.includes(trimmed)) {
+      const updated = [...customAgeGroups, trimmed];
+      setCustomAgeGroups(updated);
+      try {
+        localStorage.setItem("lsb_custom_age_groups", JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Could not save custom age group to localStorage", e);
+      }
+    }
+    setProductForm((prev) => ({ ...prev, ageGroup: trimmed }));
+    setNewAgeGroupInput("");
+    setShowAddAgeGroupInput(false);
+    showNotification(`Added age group: "${trimmed}"`);
+  };
+
+  // Remove Custom Age Group Handler
+  const handleRemoveCustomAgeGroup = (agToRemove, e) => {
+    if (e) e.stopPropagation();
+    if (DEFAULT_AGE_GROUPS.includes(agToRemove)) return;
+    const updated = customAgeGroups.filter((ag) => ag !== agToRemove);
+    setCustomAgeGroups(updated);
+    try {
+      localStorage.setItem("lsb_custom_age_groups", JSON.stringify(updated));
+    } catch (e) {
+      console.warn("Could not remove custom age group from localStorage", e);
+    }
+    if (productForm.ageGroup === agToRemove) {
+      setProductForm((prev) => ({ ...prev, ageGroup: DEFAULT_AGE_GROUPS[0] || "0 - 3 Months" }));
+    }
+    showNotification(`Removed age group: "${agToRemove}"`);
+  };
+
+  // Add Custom Size Option Handler
+  const handleAddCustomSize = (val, targetCvIdx = null) => {
+    const trimmed = (val || newSizeInput).trim();
+    if (!trimmed) return;
+    if (!allAvailableSizes.includes(trimmed)) {
+      const updated = [...customSizes, trimmed];
+      setCustomSizes(updated);
+      try {
+        localStorage.setItem("lsb_custom_sizes", JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Could not save custom size to localStorage", e);
+      }
+    }
+    if (typeof targetCvIdx === "number" && targetCvIdx >= 0) {
+      handleToggleSizeForColor(targetCvIdx, trimmed);
+    }
+    setNewSizeInput("");
+    setShowAddSizeInput(false);
+    setActiveSizeColorIndex(null);
+    showNotification(`Added size option: "${trimmed}"`);
+  };
+
+  // Remove Custom Size Option Handler
+  const handleRemoveCustomSize = (szToRemove, e) => {
+    if (e) e.stopPropagation();
+    if (DEFAULT_AVAILABLE_SIZES.includes(szToRemove)) return;
+    const updated = customSizes.filter((sz) => sz !== szToRemove);
+    setCustomSizes(updated);
+    try {
+      localStorage.setItem("lsb_custom_sizes", JSON.stringify(updated));
+    } catch (e) {
+      console.warn("Could not remove custom size from localStorage", e);
+    }
+    setProductForm((prev) => ({
+      ...prev,
+      colorVariants: (prev.colorVariants || []).map((cv) => ({
+        ...cv,
+        sizes: (cv.sizes || []).filter((s) => s !== szToRemove),
+        inventory: (cv.inventory || []).filter((inv) => inv.size !== szToRemove),
+      })),
+    }));
+    showNotification(`Removed custom size option: "${szToRemove}"`);
+  };
+
   // Fetch all admin data
   const loadAllData = async () => {
     setLoading(true);
@@ -528,6 +667,9 @@ function AdminPage() {
       setOrdersList(ordRes.orders || []);
       setUsersList(usrRes.users || []);
       setIsLiveBackend(Boolean(dash?.isLiveBackend || prodRes?.isLiveBackend));
+      if (refreshSettings) {
+        refreshSettings().catch(() => {});
+      }
     } catch (err) {
       console.error("Error loading admin data:", err);
     } finally {
@@ -775,6 +917,38 @@ function AdminPage() {
     });
   };
 
+  // Size Chart Image Upload
+  const handleSizeChartImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.match(/^image\/(jpeg|jpg|png|webp)$/i)) {
+      alert("Invalid file format. Please upload a JPG, PNG, or WEBP image.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert("File size exceeds 10MB limit. Please upload a smaller image.");
+      return;
+    }
+
+    setSizeChartImageUploading(true);
+    try {
+      const url = await adminService.uploadImage(file);
+      setProductForm((prev) => ({ ...prev, sizeChartImage: url }));
+      showNotification("Size chart image uploaded successfully!");
+    } catch (err) {
+      alert("Failed to upload size chart image: " + err.message);
+    } finally {
+      setSizeChartImageUploading(false);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleRemoveSizeChartImage = () => {
+    setProductForm((prev) => ({ ...prev, sizeChartImage: "" }));
+    showNotification("Size chart image removed.");
+  };
+
   // Category Image Upload
   const handleCategoryImageUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -1012,6 +1186,7 @@ function AdminPage() {
       season: p.season || "",
       price: p.price !== undefined ? p.price : "",
       mrp: p.mrp !== undefined ? p.mrp : (p.price || ""),
+      manufacturingCost: p.manufacturingCost !== undefined ? p.manufacturingCost : "",
       discount: p.discount || calcDiscount(p.price, p.mrp || p.price),
       gst: p.gst !== undefined ? p.gst : 5,
       stock: p.stock !== undefined ? p.stock : 0,
@@ -1019,6 +1194,7 @@ function AdminPage() {
       stockStatus: p.stockStatus || getStockStatus(p.stock, p.lowStockThreshold),
       image: mainImage,
       gallery: Array.isArray(p.gallery) ? p.gallery : (mainImage ? [mainImage] : []),
+      sizeChartImage: p.sizeChartImage || "",
       video: mainVideo,
       videos: existingVideos,
       colorVariants: loadedColorVariants,
@@ -1127,6 +1303,7 @@ function AdminPage() {
         name: productForm.name.trim(),
         price: Number(productForm.price),
         mrp: Number(productForm.mrp || productForm.price),
+        manufacturingCost: productForm.manufacturingCost !== "" ? Number(productForm.manufacturingCost) : 0,
         discount: calcDiscount(productForm.price, productForm.mrp || productForm.price),
         gst: Number(productForm.gst || 5),
         stock: totalCalculatedStock,
@@ -1138,6 +1315,7 @@ function AdminPage() {
         subCategoryId: typeof selectedSubCatObj === "object" && selectedSubCatObj._id ? selectedSubCatObj._id : (productForm.subCategoryId || undefined),
         image: mainImage,
         gallery: uniqueGallery.length > 0 ? uniqueGallery : [mainImage],
+        sizeChartImage: productForm.sizeChartImage ? productForm.sizeChartImage.trim() : "",
         video: productForm.video || (Array.isArray(productForm.videos) && productForm.videos[0]) || "",
         videos: Array.isArray(productForm.videos)
           ? productForm.videos.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean)
@@ -2184,6 +2362,88 @@ function AdminPage() {
                   </button>
                 </div>
 
+                {/* ─── COD (Cash on Delivery) Option Toggle Card ─── */}
+                <div className={`rounded-2xl border p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition shadow-xs ${
+                  codEnabled
+                    ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20"
+                    : "border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20"
+                }`}>
+                  <div className="flex items-start sm:items-center gap-3">
+                    <div className={`h-11 w-11 rounded-2xl grid place-items-center shrink-0 shadow-2xs ${
+                      codEnabled
+                        ? "bg-emerald-500 text-white"
+                        : "bg-amber-500 text-white"
+                    }`}>
+                      <Banknote className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-black text-foreground">
+                          Cash on Delivery (COD) Option
+                        </h3>
+                        <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border ${
+                          codEnabled
+                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                            : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                        }`}>
+                          {codEnabled ? "🟢 Available at Checkout" : "🔴 Hidden / Disabled at Checkout"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {codEnabled
+                          ? "Cash on Delivery is currently active. Customers can choose COD during checkout."
+                          : "Cash on Delivery is turned OFF. The COD option is completely hidden from the checkout page."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
+                    <span className="text-xs font-bold text-muted-foreground">
+                      {codEnabled ? "COD is ON" : "COD is OFF"}
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={codEnabled}
+                      title={`Click to turn ${codEnabled ? "OFF" : "ON"} Cash on Delivery`}
+                      onClick={async () => {
+                        const nextCod = !codEnabled;
+                        if (setCodEnabled) setCodEnabled(nextCod);
+                        try {
+                          localStorage.setItem("little_sunbeam_cod_enabled", String(nextCod));
+                          localStorage.setItem("little_sunbeam_settings", JSON.stringify({ codEnabled: nextCod }));
+                          window.dispatchEvent(new CustomEvent("settings_updated", { detail: { codEnabled: nextCod } }));
+                          window.dispatchEvent(new CustomEvent("cod_updated", { detail: nextCod }));
+                          if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+                            const bc = new BroadcastChannel("little_sunbeam_broadcast_channel");
+                            bc.postMessage({ type: "COD_UPDATED", codEnabled: nextCod });
+                            bc.close();
+                          }
+                        } catch { }
+                        try {
+                          await adminService.updateSettings({ codEnabled: nextCod });
+                          showNotification(
+                            `Cash on Delivery (COD) is now ${nextCod ? "ENABLED" : "DISABLED"} for checkout!`
+                          );
+                        } catch {
+                          showNotification(
+                            `Cash on Delivery (COD) is now ${nextCod ? "ENABLED" : "DISABLED"}!`
+                          );
+                        }
+                      }}
+                      className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                        codEnabled ? "bg-emerald-500" : "bg-muted-foreground/30"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          codEnabled ? "translate-x-7" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
                 {/* Filter Bar */}
                 <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-3">
                   <div className="relative flex-1 min-w-[200px]">
@@ -2225,7 +2485,7 @@ function AdminPage() {
                           <th className="px-4 py-3">Product Info</th>
                           <th className="px-4 py-3">Category &amp; Subcategory</th>
                           <th className="px-4 py-3">Specs</th>
-                          <th className="px-4 py-3">Price &amp; MRP</th>
+                          <th className="px-4 py-3">Price, Cost &amp; Profit</th>
                           <th className="px-4 py-3">Stock &amp; Status</th>
                           <th className="px-4 py-3">Variants</th>
                           <th className="px-4 py-3 text-right">Actions</th>
@@ -2243,6 +2503,9 @@ function AdminPage() {
                             const discount = p.discount || (p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0);
                             const stockCount = p.stock !== undefined ? p.stock : 0;
                             const stockStatus = p.stockStatus || (stockCount <= 0 ? "Out of Stock" : (stockCount <= 10 ? "Low Stock" : "In Stock"));
+                            const manufacturingCost = Number(p.manufacturingCost) || 0;
+                            const profit = (Number(p.price) || 0) - manufacturingCost;
+                            const hasCost = manufacturingCost > 0;
 
                             return (
                               <tr key={p._id || p.id} className="hover:bg-muted/20 transition">
@@ -2267,6 +2530,11 @@ function AdminPage() {
                                       <p className="font-bold text-foreground line-clamp-1">{p.name}</p>
                                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                         <span className="text-[11px] font-mono text-muted-foreground">{p.sku || "NO-SKU"}</span>
+                                        {p.sizeChartImage && (
+                                          <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-500/10 text-blue-600 border border-blue-500/20 px-1.5 py-0.2 text-[9px] font-black uppercase" title="Custom Size Chart Uploaded">
+                                            <Ruler className="h-2.5 w-2.5" /> Size Chart
+                                          </span>
+                                        )}
                                         {((p.videos && p.videos.length > 0) || p.video) && (
                                           <span className="inline-flex items-center gap-1 rounded-full bg-fuchsia-500/10 text-fuchsia-600 border border-fuchsia-500/20 px-2 py-0.5 text-[9px] font-black uppercase">
                                             <Video className="h-2.5 w-2.5" /> Watch to Shop
@@ -2307,19 +2575,35 @@ function AdminPage() {
                                 </td>
 
                                 <td className="px-4 py-3 font-semibold">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-foreground font-black">₹{p.price}</span>
-                                    {p.mrp > p.price && (
-                                      <span className="text-xs text-muted-foreground line-through">
-                                        ₹{p.mrp}
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-foreground font-black">₹{p.price}</span>
+                                      {p.mrp > p.price && (
+                                        <span className="text-xs text-muted-foreground line-through">
+                                          ₹{p.mrp}
+                                        </span>
+                                      )}
+                                      {discount > 0 && (
+                                        <span className="text-[10px] font-black text-emerald-600 bg-emerald-500/10 px-1 py-0.2 rounded">
+                                          {discount}%
+                                        </span>
+                                      )}
+                                    </div>
+                                    {hasCost ? (
+                                      <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
+                                        <span className="text-muted-foreground text-[10px]">Cost: ₹{manufacturingCost}</span>
+                                        <span className={`font-black px-1.5 py-0.2 rounded-md text-[10px] ${
+                                          profit >= 0 ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-rose-500/15 text-rose-700 dark:text-rose-400"
+                                        }`}>
+                                          {profit >= 0 ? `+₹${profit}` : `-₹${Math.abs(profit)}`} Profit
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground block font-normal">
+                                        Cost: Not set
                                       </span>
                                     )}
                                   </div>
-                                  {discount > 0 && (
-                                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded-md">
-                                      {discount}% OFF
-                                    </span>
-                                  )}
                                 </td>
 
                                 <td className="px-4 py-3">
@@ -4206,30 +4490,36 @@ function AdminPage() {
 
         {/* ─── ADD/EDIT PRODUCT MODAL ─────────────────────────────────────── */}
         {productModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-sm">
-            <div className="w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl border border-border bg-card shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-              {/* Modal Header */}
-              <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-muted/20">
-                <div>
-                  <h2 className="text-lg font-black tracking-tight text-foreground flex items-center gap-2">
-                    <Package className="h-5 w-5 text-primary" />
-                    <span>{editingProduct ? "Edit Baby Clothing Product" : "Add New Baby Clothing Product"}</span>
-                  </h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {editingProduct ? `Updating SKU: ${productForm.sku}` : "Configure product details, baby clothing specs, pricing, stock, images & variants."}
-                  </p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-4 md:p-6 backdrop-blur-md">
+            <div className="w-[96vw] max-w-7xl h-[92vh] max-h-[92vh] flex flex-col rounded-3xl border border-border bg-card shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              
+              {/* Modal Header (Sticky) */}
+              <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-muted/30 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-2xl bg-primary/10 text-primary grid place-items-center shrink-0 border border-primary/20">
+                    <Package className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-black tracking-tight text-foreground flex items-center gap-2">
+                      <span>{editingProduct ? "Edit Baby Clothing Product" : "Add New Baby Clothing Product"}</span>
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {editingProduct ? `Updating SKU: ${productForm.sku || "N/A"}` : "Configure product details, baby clothing specs, pricing, stock, images & variants."}
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setProductModalOpen(false)}
-                  className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+                  className="rounded-full p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground transition border border-transparent hover:border-border cursor-pointer"
+                  title="Close popup"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              {/* Form Navigation Tabs */}
-              <div className="flex items-center gap-1 border-b border-border bg-muted/40 px-6 py-2 overflow-x-auto text-xs font-bold scrollbar-none">
+              {/* Form Navigation Tabs (Sticky) */}
+              <div className="flex items-center gap-1.5 border-b border-border bg-muted/40 px-6 py-2.5 overflow-x-auto text-xs font-bold scrollbar-none shrink-0">
                 {[
                   { id: "basic", label: "Basic Info *", icon: Package },
                   { id: "clothing", label: "Baby Specs", icon: Layers },
@@ -4245,12 +4535,12 @@ function AdminPage() {
                       key={tab.id}
                       type="button"
                       onClick={() => setProductModalTab(tab.id)}
-                      className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 transition whitespace-nowrap ${isActive
-                        ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className={`flex items-center gap-2 rounded-xl px-4 py-2 transition whitespace-nowrap font-bold text-xs cursor-pointer ${isActive
+                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
                         }`}
                     >
-                      <Icon className="h-3.5 w-3.5" />
+                      <Icon className="h-4 w-4" />
                       <span>{tab.label}</span>
                     </button>
                   );
@@ -4265,7 +4555,7 @@ function AdminPage() {
                       goToErrorSection(formErrorTarget.tab, formErrorTarget.fieldId);
                     }
                   }}
-                  className="mx-6 mt-4 flex items-center justify-between gap-3 rounded-2xl bg-rose-500/10 border-2 border-rose-500/30 p-3.5 text-xs font-bold text-rose-700 dark:text-rose-400 cursor-pointer shadow-sm hover:bg-rose-500/15 hover:border-rose-500 transition-all duration-200 group"
+                  className="mx-6 mt-4 flex items-center justify-between gap-3 rounded-2xl bg-rose-500/10 border-2 border-rose-500/30 p-3.5 text-xs font-bold text-rose-700 dark:text-rose-400 cursor-pointer shadow-sm hover:bg-rose-500/15 hover:border-rose-500 transition-all duration-200 group shrink-0"
                   title="Click to jump directly to this error section"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -4299,1293 +4589,1764 @@ function AdminPage() {
                 </div>
               )}
 
-              {/* Modal Body / Tabs Content */}
-              <form onSubmit={handleSaveProduct} className="flex-1 overflow-y-auto p-6 space-y-5">
-                {/* ── TAB 1: BASIC INFORMATION ── */}
-                {productModalTab === "basic" && (
-                  <div className="space-y-4 animate-in fade-in duration-150">
-                    <div>
-                      <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                        Product Name *
-                      </label>
-                      <input
-                        id="input-product-name"
-                        type="text"
-                        required
-                        value={productForm.name}
-                        onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                        placeholder="e.g. Organic Muslin Baby Romper"
-                        className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm font-semibold outline-none focus:border-primary focus:bg-background transition"
-                      />
-                    </div>
+              {/* Form Body - Scrollable Content Area & Sticky Bottom Bar inside Form */}
+              <form id="product-modal-form" onSubmit={handleSaveProduct} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
+                  {/* ── TAB 1: BASIC INFORMATION ── */}
+                  {productModalTab === "basic" && (
+                    <div className="space-y-6 animate-in fade-in duration-150">
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        
+                        {/* Left Column: Product Identification & Categorization (7 cols) */}
+                        <div className="lg:col-span-7 space-y-6">
+                          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-4 shadow-xs">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2 border-b border-border pb-3">
+                              <Package className="h-4 w-4 text-primary" />
+                              <span>Product Identity</span>
+                            </h3>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Product SKU / Product Code
-                        </label>
-                        <input
-                          id="input-product-sku"
-                          type="text"
-                          value={productForm.sku}
-                          onChange={(e) => setProductForm({ ...productForm, sku: e.target.value.toUpperCase() })}
-                          placeholder="e.g. SUN-ROMP-01"
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm font-mono uppercase outline-none focus:border-primary focus:bg-background transition"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Brand
-                        </label>
-                        <input
-                          id="input-product-brand"
-                          type="text"
-                          value={productForm.brand}
-                          onChange={(e) => setProductForm({ ...productForm, brand: e.target.value })}
-                          placeholder="e.g. Little Sunbeam"
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm outline-none focus:border-primary focus:bg-background transition"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Dynamic Category Selector */}
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Category * (Dynamic from DB)
-                        </label>
-                        <select
-                          id="input-product-category"
-                          required
-                          value={productForm.category}
-                          onChange={(e) => {
-                            const selectedVal = e.target.value;
-                            const foundCat = categoriesList.find(
-                              (c) =>
-                                (c.id || c.slug || c.name || "").toLowerCase() === selectedVal.toLowerCase() ||
-                                String(c._id) === selectedVal
-                            );
-                            setProductForm({
-                              ...productForm,
-                              category: selectedVal,
-                              categoryId: foundCat?._id ? String(foundCat._id) : "",
-                              subCategory: "", // reset subcategory on category change
-                              subCategoryId: "",
-                            });
-                          }}
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm font-semibold outline-none focus:border-primary focus:bg-background transition"
-                        >
-                          <option value="" disabled>Select Category</option>
-                          {categoriesList.map((c) => {
-                            const val = (c.slug || c.name || c.id || "").toLowerCase();
-                            return (
-                              <option key={c._id || c.id || c.name} value={val}>
-                                {c.name}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </div>
-
-                      {/* Sub Category (Strictly Linked to Selected Category) */}
-                      <div>
-                        <label className="mb-1 flex items-center justify-between text-xs font-bold uppercase text-muted-foreground">
-                          <span>Sub Category (Optional)</span>
-                          {productForm.category && (
-                            <span className="text-[10px] lowercase font-normal text-primary">
-                              linked to selected category
-                            </span>
-                          )}
-                        </label>
-                        {(() => {
-                          const currentCatObj = categoriesList.find(
-                            (c) =>
-                              (c.slug || c.name || c.id || "").toLowerCase() === (productForm.category || "").toLowerCase() ||
-                              (productForm.categoryId && String(c._id) === String(productForm.categoryId))
-                          );
-                          const dbSubs = (currentCatObj?.subCategories || []).filter(Boolean);
-
-                          if (!productForm.category) {
-                            return (
-                              <div className="rounded-xl border border-dashed border-border bg-muted/20 p-2.5 text-center text-xs text-muted-foreground font-medium">
-                                Please select a Category first
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <div className="space-y-2">
-                              <select
-                                id="input-product-subcategory"
-                                value={productForm.subCategory || ""}
-                                onChange={(e) => {
-                                  const chosenVal = e.target.value;
-                                  const foundSub = dbSubs.find((s) => {
-                                    const sName = typeof s === "string" ? s : s.name;
-                                    return sName === chosenVal;
-                                  });
-                                  setProductForm({
-                                    ...productForm,
-                                    subCategory: chosenVal,
-                                    subCategoryId: typeof foundSub === "object" && foundSub?._id ? String(foundSub._id) : "",
-                                  });
-                                }}
-                                className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm font-semibold outline-none focus:border-primary focus:bg-background transition"
-                              >
-                                <option value="">None / Main Category Only</option>
-                                {dbSubs.map((sc, sIdx) => {
-                                  const subName = typeof sc === "string" ? sc : sc.name;
-                                  const subKey = typeof sc === "object" && sc._id ? sc._id : sIdx;
-                                  return (
-                                    <option key={subKey} value={subName}>
-                                      {subName}
-                                    </option>
-                                  );
-                                })}
-                              </select>
-
-                              {/* Quick Click Badges or Add Subcategory Prompt */}
-                              {dbSubs.length > 0 ? (
-                                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                                  <span className="text-[11px] text-muted-foreground font-semibold">Quick Pick:</span>
-                                  {dbSubs.map((sc, sIdx) => {
-                                    const subName = typeof sc === "string" ? sc : sc.name;
-                                    const subKey = typeof sc === "object" && sc._id ? sc._id : sIdx;
-                                    const isSelected = productForm.subCategory === subName;
-
-                                    return (
-                                      <button
-                                        key={subKey}
-                                        type="button"
-                                        onClick={() => {
-                                          setProductForm({
-                                            ...productForm,
-                                            subCategory: isSelected ? "" : subName,
-                                            subCategoryId: !isSelected && typeof sc === "object" && sc._id ? String(sc._id) : "",
-                                          });
-                                        }}
-                                        className={`rounded-lg px-2.5 py-0.5 text-[11px] font-bold border transition ${isSelected
-                                            ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                                            : "bg-background text-foreground border-border hover:border-primary/60"
-                                          }`}
-                                      >
-                                        {subName}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-between rounded-xl border border-dashed border-border/80 bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
-                                  <span>No subcategories for "{currentCatObj?.name || productForm.category}".</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenAddSubCategory(currentCatObj)}
-                                    className="text-xs font-bold text-primary hover:underline ml-2"
-                                  >
-                                    + Add Subcategory
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                        Description *
-                      </label>
-                      <textarea
-                        id="input-product-description"
-                        rows={3}
-                        required
-                        value={productForm.description}
-                        onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                        placeholder="Detailed description e.g. Made with ultra-soft GOTS-certified double-layer organic cotton, designed for delicate newborn skin. Breathable, hypoallergenic and comfortable for all-day wear."
-                        className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm outline-none focus:border-primary focus:bg-background transition"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                        Product Details / Highlights (Optional)
-                      </label>
-                      <textarea
-                        id="input-product-details"
-                        rows={3}
-                        value={productForm.details || ""}
-                        onChange={(e) => setProductForm({ ...productForm, details: e.target.value })}
-                        placeholder="Key product highlights, craftsmanship details, or feature bullets e.g. Crafted with pure breathable fabric, snap-button closure for easy diaper changes, smooth interior lining, and certified non-toxic baby-safe dyes."
-                        className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm outline-none focus:border-primary focus:bg-background transition"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* ── TAB 2: BABY CLOTHING SPECIFICS (OPTIONAL ATTRIBUTES) ── */}
-                {productModalTab === "clothing" && (
-                  <div className="space-y-5 animate-in fade-in duration-150">
-                    {/* Gender & Age Group */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
-                          Gender
-                        </label>
-                        <div className="flex rounded-xl border border-border bg-muted/30 p-1">
-                          {GENDERS.map((g) => (
-                            <button
-                              key={g}
-                              type="button"
-                              onClick={() => setProductForm({ ...productForm, gender: g })}
-                              className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition ${productForm.gender === g
-                                ? "bg-primary text-primary-foreground shadow-xs"
-                                : "text-muted-foreground hover:text-foreground"
-                                }`}
-                            >
-                              {g}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
-                          Primary Age Group
-                        </label>
-                        <select
-                          value={productForm.ageGroup}
-                          onChange={(e) => setProductForm({ ...productForm, ageGroup: e.target.value })}
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-sm font-semibold outline-none focus:border-primary focus:bg-background"
-                        >
-                          {AGE_GROUPS.map((ag) => (
-                            <option key={ag} value={ag}>
-                              {ag}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Fabric, Pattern */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Fabric / Material <span className="normal-case font-normal text-muted-foreground/70">(Optional)</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={productForm.fabric}
-                          onChange={(e) => setProductForm({ ...productForm, fabric: e.target.value })}
-                          placeholder="e.g. 100% GOTS Certified Organic Cotton"
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-sm outline-none focus:border-primary focus:bg-background"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Pattern Style <span className="normal-case font-normal text-muted-foreground/70">(Optional)</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={productForm.pattern}
-                          onChange={(e) => setProductForm({ ...productForm, pattern: e.target.value })}
-                          placeholder="e.g. Floral, Polka Dots, Solid"
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-sm outline-none focus:border-primary focus:bg-background"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Dynamic Prints Multi-Select (Optional) */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="block text-xs font-bold uppercase text-muted-foreground">
-                          Print / Pattern <span className="normal-case font-normal text-muted-foreground/70">(Optional — Select one, multiple, or none)</span>
-                        </label>
-                        <span className="text-[11px] text-muted-foreground">
-                          {productForm.prints?.length || 0} selected
-                        </span>
-                      </div>
-
-                      {prints.length === 0 ? (
-                        <p className="text-xs text-muted-foreground italic">No prints found in database.</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-muted/20 p-3">
-                          {prints.map((pr) => {
-                            const pId = String(pr._id || pr.id || pr.name);
-                            const isSelected = Array.isArray(productForm.prints) && productForm.prints.some((id) => String(id) === pId || String(id) === pr.id || String(id) === pr._id);
-                            return (
-                              <button
-                                key={pId}
-                                type="button"
-                                onClick={() => {
-                                  const current = Array.isArray(productForm.prints) ? [...productForm.prints] : [];
-                                  const idx = current.findIndex((id) => String(id) === pId || String(id) === pr.id || String(id) === pr._id);
-                                  let updated;
-                                  if (idx >= 0) {
-                                    updated = current.filter((_, i) => i !== idx);
-                                  } else {
-                                    updated = [...current, pr._id || pr.id];
-                                  }
-                                  setProductForm({
-                                    ...productForm,
-                                    prints: updated,
-                                    print: updated[0] ? String(updated[0]) : "",
-                                  });
-                                }}
-                                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-all ${isSelected
-                                  ? "border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/20 scale-105"
-                                  : "border-border bg-card text-foreground hover:border-primary"
-                                  }`}
-                              >
-                                <span>{pr.emoji || pr.icon || "✨"}</span>
-                                <span>{pr.name}</span>
-                                {isSelected && <Check className="h-3 w-3" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Optional Attributes: Sleeve, Neck, Fit, Season */}
-                    <div className="rounded-2xl border border-border bg-muted/10 p-4 space-y-3">
-                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Optional Clothing Attributes (Do not block product creation if empty)
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div>
-                          <label className="mb-1 block text-[11px] font-bold uppercase text-muted-foreground">
-                            Sleeve Type
-                          </label>
-                          <select
-                            value={productForm.sleeveType}
-                            onChange={(e) => setProductForm({ ...productForm, sleeveType: e.target.value })}
-                            className="w-full rounded-xl border border-border bg-background px-2.5 py-2 text-xs font-semibold outline-none focus:border-primary"
-                          >
-                            <option value="">None / Not Specified</option>
-                            {SLEEVE_TYPES.filter(Boolean).map((st) => (
-                              <option key={st} value={st}>{st}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="mb-1 block text-[11px] font-bold uppercase text-muted-foreground">
-                            Neck Type
-                          </label>
-                          <select
-                            value={productForm.neckType}
-                            onChange={(e) => setProductForm({ ...productForm, neckType: e.target.value })}
-                            className="w-full rounded-xl border border-border bg-background px-2.5 py-2 text-xs font-semibold outline-none focus:border-primary"
-                          >
-                            <option value="">None / Not Specified</option>
-                            {NECK_TYPES.filter(Boolean).map((nt) => (
-                              <option key={nt} value={nt}>{nt}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="mb-1 block text-[11px] font-bold uppercase text-muted-foreground">
-                            Fit Type
-                          </label>
-                          <select
-                            value={productForm.fitType}
-                            onChange={(e) => setProductForm({ ...productForm, fitType: e.target.value })}
-                            className="w-full rounded-xl border border-border bg-background px-2.5 py-2 text-xs font-semibold outline-none focus:border-primary"
-                          >
-                            <option value="">None / Not Specified</option>
-                            {FIT_TYPES.filter(Boolean).map((ft) => (
-                              <option key={ft} value={ft}>{ft}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="mb-1 block text-[11px] font-bold uppercase text-muted-foreground">
-                            Season
-                          </label>
-                          <select
-                            value={productForm.season}
-                            onChange={(e) => setProductForm({ ...productForm, season: e.target.value })}
-                            className="w-full rounded-xl border border-border bg-background px-2.5 py-2 text-xs font-semibold outline-none focus:border-primary"
-                          >
-                            <option value="">None / Not Specified</option>
-                            {SEASONS.filter(Boolean).map((sn) => (
-                              <option key={sn} value={sn}>{sn}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── TAB 3: COLOR-BASED PRODUCT VARIANTS & INVENTORY (THE MAIN ARCHITECTURE) ── */}
-                {productModalTab === "variants" && (
-                  <div id="section-product-variants" className="space-y-6 animate-in fade-in duration-150">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border pb-3">
-                      <div>
-                        <h3 className="text-sm font-black uppercase text-foreground flex items-center gap-2">
-                          <Boxes className="h-4 w-4 text-primary" />
-                          <span>Color-Based Product Variants &amp; Inventory</span>
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          Each color has its own photos, selectable sizes, and exact size-wise inventory.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleAddColorVariant}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 transition active:scale-95 shrink-0"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span>+ Add Another Color</span>
-                      </button>
-                    </div>
-
-                    {/* Color Variant Cards List */}
-                    <div className="space-y-6">
-                      {(productForm.colorVariants || []).map((cv, cvIdx) => {
-                        const totalCvStock = (cv.inventory || []).reduce((acc, inv) => acc + (Number(inv.stock) || 0), 0);
-
-                        return (
-                          <div
-                            key={cv.id || cvIdx}
-                            id={`color-variant-card-${cvIdx}`}
-                            className="rounded-2xl border-2 border-border bg-card p-5 space-y-5 shadow-sm transition hover:border-primary/40"
-                          >
-                            {/* Color Card Header */}
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
-                              <div className="flex items-center gap-3">
-                                <span
-                                  className="h-8 w-8 rounded-full border-2 border-white shadow-md shrink-0"
-                                  style={{ backgroundColor: cv.hex || "#E5E7EB" }}
-                                />
-                                <div>
-                                  <h4 className="text-sm font-black text-foreground">
-                                    Color #{cvIdx + 1}: <span className="text-primary">{cv.displayName || cv.name}</span>
-                                  </h4>
-                                  <p className="text-[11px] text-muted-foreground">
-                                    {cv.images?.length || 0} image(s) · {cv.sizes?.length || 0} size(s) · {totalCvStock} units in stock
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2 self-end sm:self-auto">
-                                {(productForm.colorVariants?.length || 0) > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveColorVariant(cvIdx)}
-                                    className="inline-flex items-center gap-1 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive hover:bg-destructive/20 transition"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                    <span>Delete Color</span>
-                                  </button>
-                                )}
-                              </div>
+                            <div>
+                              <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                Product Name *
+                              </label>
+                              <input
+                                id="input-product-name"
+                                type="text"
+                                required
+                                value={productForm.name}
+                                onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                                placeholder="e.g. Organic Muslin Baby Romper"
+                                className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm font-bold outline-none focus:border-primary focus:bg-background transition"
+                              />
                             </div>
 
-                            {/* Color Selector & Custom Hex */}
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div>
-                                <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                                  Color Name *
-                                </label>
-                                <select
-                                  value={POPULAR_COLORS.some((c) => c.name.toLowerCase() === cv.name.toLowerCase()) ? cv.name : "__custom__"}
-                                  onChange={(e) => {
-                                    if (e.target.value === "__custom__") {
-                                      handleColorVariantChange(cvIdx, "name", "Custom Color");
-                                    } else {
-                                      handleColorVariantChange(cvIdx, "name", e.target.value);
-                                    }
-                                  }}
-                                  className="w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-bold outline-none focus:border-primary"
-                                >
-                                  {POPULAR_COLORS.map((pc) => (
-                                    <option key={pc.name} value={pc.name}>{pc.name}</option>
-                                  ))}
-                                  <option value="__custom__">+ Custom Color Name...</option>
-                                </select>
-                                {!POPULAR_COLORS.some((c) => c.name.toLowerCase() === cv.name.toLowerCase()) && (
-                                  <input
-                                    type="text"
-                                    value={cv.name}
-                                    onChange={(e) => handleColorVariantChange(cvIdx, "name", e.target.value)}
-                                    placeholder="e.g. Royal Navy Blue"
-                                    className="mt-1.5 w-full rounded-xl border border-primary bg-background px-3 py-1.5 text-xs font-semibold outline-none"
-                                  />
-                                )}
-                              </div>
-
-                              <div>
-                                <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                                  Color Display Name
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Product SKU / Product Code
                                 </label>
                                 <input
+                                  id="input-product-sku"
                                   type="text"
-                                  value={cv.displayName || cv.name}
-                                  onChange={(e) => handleColorVariantChange(cvIdx, "displayName", e.target.value)}
-                                  placeholder="e.g. Sky Blue"
-                                  className="w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-semibold outline-none focus:border-primary"
+                                  value={productForm.sku}
+                                  onChange={(e) => setProductForm({ ...productForm, sku: e.target.value.toUpperCase() })}
+                                  placeholder="e.g. SUN-ROMP-01"
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm font-mono uppercase font-semibold outline-none focus:border-primary focus:bg-background transition"
                                 />
+                              </div>
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Brand
+                                </label>
+                                <input
+                                  id="input-product-brand"
+                                  type="text"
+                                  value={productForm.brand}
+                                  onChange={(e) => setProductForm({ ...productForm, brand: e.target.value })}
+                                  placeholder="e.g. Little Sunbeam"
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm font-semibold outline-none focus:border-primary focus:bg-background transition"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-4 shadow-xs">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2 border-b border-border pb-3">
+                              <Layers className="h-4 w-4 text-primary" />
+                              <span>Category &amp; Classification</span>
+                            </h3>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {/* Dynamic Category Selector */}
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Category * (Dynamic from DB)
+                                </label>
+                                <select
+                                  id="input-product-category"
+                                  required
+                                  value={productForm.category}
+                                  onChange={(e) => {
+                                    const selectedVal = e.target.value;
+                                    const foundCat = categoriesList.find(
+                                      (c) =>
+                                        (c.id || c.slug || c.name || "").toLowerCase() === selectedVal.toLowerCase() ||
+                                        String(c._id) === selectedVal
+                                    );
+                                    setProductForm({
+                                      ...productForm,
+                                      category: selectedVal,
+                                      categoryId: foundCat?._id ? String(foundCat._id) : "",
+                                      subCategory: "", // reset subcategory on category change
+                                      subCategoryId: "",
+                                    });
+                                  }}
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm font-semibold outline-none focus:border-primary focus:bg-background transition"
+                                >
+                                  <option value="" disabled>Select Category</option>
+                                  {categoriesList.map((c) => {
+                                    const val = (c.slug || c.name || c.id || "").toLowerCase();
+                                    return (
+                                      <option key={c._id || c.id || c.name} value={val}>
+                                        {c.name}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              </div>
+
+                              {/* Sub Category (Strictly Linked to Selected Category) */}
+                              <div>
+                                <label className="mb-1.5 flex items-center justify-between text-xs font-bold uppercase text-muted-foreground">
+                                  <span>Sub Category (Optional)</span>
+                                  {productForm.category && (
+                                    <span className="text-[10px] lowercase font-normal text-primary">
+                                      linked to category
+                                    </span>
+                                  )}
+                                </label>
+                                {(() => {
+                                  const currentCatObj = categoriesList.find(
+                                    (c) =>
+                                      (c.slug || c.name || c.id || "").toLowerCase() === (productForm.category || "").toLowerCase() ||
+                                      (productForm.categoryId && String(c._id) === String(productForm.categoryId))
+                                  );
+                                  const dbSubs = (currentCatObj?.subCategories || []).filter(Boolean);
+
+                                  if (!productForm.category) {
+                                    return (
+                                      <div className="rounded-xl border border-dashed border-border bg-muted/20 p-2.5 text-center text-xs text-muted-foreground font-medium">
+                                        Please select a Category first
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div className="space-y-2">
+                                      <select
+                                        id="input-product-subcategory"
+                                        value={productForm.subCategory || ""}
+                                        onChange={(e) => {
+                                          const chosenVal = e.target.value;
+                                          const foundSub = dbSubs.find((s) => {
+                                            const sName = typeof s === "string" ? s : s.name;
+                                            return sName === chosenVal;
+                                          });
+                                          setProductForm({
+                                            ...productForm,
+                                            subCategory: chosenVal,
+                                            subCategoryId: typeof foundSub === "object" && foundSub?._id ? String(foundSub._id) : "",
+                                          });
+                                        }}
+                                        className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm font-semibold outline-none focus:border-primary focus:bg-background transition"
+                                      >
+                                        <option value="">None / Main Category Only</option>
+                                        {dbSubs.map((sc, sIdx) => {
+                                          const subName = typeof sc === "string" ? sc : sc.name;
+                                          const subKey = typeof sc === "object" && sc._id ? sc._id : sIdx;
+                                          return (
+                                            <option key={subKey} value={subName}>
+                                              {subName}
+                                            </option>
+                                          );
+                                        })}
+                                      </select>
+
+                                      {/* Quick Click Badges or Add Subcategory Prompt */}
+                                      {dbSubs.length > 0 ? (
+                                        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                          <span className="text-[11px] text-muted-foreground font-semibold">Quick Pick:</span>
+                                          {dbSubs.map((sc, sIdx) => {
+                                            const subName = typeof sc === "string" ? sc : sc.name;
+                                            const subKey = typeof sc === "object" && sc._id ? sc._id : sIdx;
+                                            const isSelected = productForm.subCategory === subName;
+
+                                            return (
+                                              <button
+                                                key={subKey}
+                                                type="button"
+                                                onClick={() => {
+                                                  setProductForm({
+                                                    ...productForm,
+                                                    subCategory: isSelected ? "" : subName,
+                                                    subCategoryId: !isSelected && typeof sc === "object" && sc._id ? String(sc._id) : "",
+                                                  });
+                                                }}
+                                                className={`rounded-lg px-2.5 py-0.5 text-[11px] font-bold border transition cursor-pointer ${isSelected
+                                                    ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                                    : "bg-background text-foreground border-border hover:border-primary/60"
+                                                  }`}
+                                              >
+                                                {subName}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center justify-between rounded-xl border border-dashed border-border/80 bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
+                                          <span>No subcategories for "{currentCatObj?.name || productForm.category}".</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenAddSubCategory(currentCatObj)}
+                                            className="text-xs font-bold text-primary hover:underline ml-2 cursor-pointer"
+                                          >
+                                            + Add Subcategory
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Column: Descriptions & Details (5 cols) */}
+                        <div className="lg:col-span-5 space-y-6">
+                          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-4 shadow-xs h-full flex flex-col">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2 border-b border-border pb-3">
+                              <Sparkles className="h-4 w-4 text-primary" />
+                              <span>Product Story &amp; Details</span>
+                            </h3>
+
+                            <div className="flex-1">
+                              <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                Description *
+                              </label>
+                              <textarea
+                                id="input-product-description"
+                                rows={5}
+                                required
+                                value={productForm.description}
+                                onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                                placeholder="Detailed description e.g. Made with ultra-soft GOTS-certified double-layer organic cotton, designed for delicate newborn skin. Breathable, hypoallergenic and comfortable for all-day wear."
+                                className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm outline-none focus:border-primary focus:bg-background transition"
+                              />
+                            </div>
+
+                            <div className="flex-1">
+                              <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                Product Details / Highlights (Optional)
+                              </label>
+                              <textarea
+                                id="input-product-details"
+                                rows={5}
+                                value={productForm.details || ""}
+                                onChange={(e) => setProductForm({ ...productForm, details: e.target.value })}
+                                placeholder="Key product highlights, craftsmanship details, or feature bullets e.g. Crafted with pure breathable fabric, snap-button closure for easy diaper changes, smooth interior lining, and certified non-toxic baby-safe dyes."
+                                className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-sm outline-none focus:border-primary focus:bg-background transition"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── TAB 2: BABY CLOTHING SPECIFICS (OPTIONAL ATTRIBUTES) ── */}
+                  {productModalTab === "clothing" && (
+                    <div className="space-y-6 animate-in fade-in duration-150">
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        
+                        {/* Left Column (6 cols): Gender, Age, Fabric, Pattern, Attributes */}
+                        <div className="lg:col-span-6 space-y-6">
+                          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-4 shadow-xs">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2 border-b border-border pb-3">
+                              <Layers className="h-4 w-4 text-primary" />
+                              <span>Baby Demographics &amp; Material</span>
+                            </h3>
+
+                            {/* Gender & Age Group */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Gender
+                                </label>
+                                <div className="flex rounded-xl border border-border bg-muted/30 p-1">
+                                  {GENDERS.map((g) => (
+                                    <button
+                                      key={g}
+                                      type="button"
+                                      onClick={() => setProductForm({ ...productForm, gender: g })}
+                                      className={`flex-1 rounded-lg py-1.5 text-xs font-bold transition cursor-pointer ${productForm.gender === g
+                                        ? "bg-primary text-primary-foreground shadow-xs"
+                                        : "text-muted-foreground hover:text-foreground"
+                                        }`}
+                                    >
+                                      {g}
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
 
                               <div>
-                                <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                                  Color Hex Code
-                                </label>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={cv.hex || "#3B82F6"}
-                                    onChange={(e) => handleColorVariantChange(cvIdx, "hex", e.target.value)}
-                                    className="h-9 w-10 cursor-pointer rounded-lg border border-border p-0.5 bg-background"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={cv.hex || "#3B82F6"}
-                                    onChange={(e) => handleColorVariantChange(cvIdx, "hex", e.target.value)}
-                                    placeholder="#3B82F6"
-                                    className="flex-1 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-mono uppercase outline-none focus:border-primary"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Color Specific Images Section */}
-                            <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div>
-                                  <span className="text-xs font-black uppercase text-foreground flex items-center gap-1.5">
-                                    <ImageIcon className="h-4 w-4 text-primary" />
-                                    <span>{cv.displayName || cv.name} Photos &amp; Angles</span>
-                                  </span>
-                                  <p className="text-[11px] text-muted-foreground">
-                                    Upload any number of images for this color. Click ★ Primary to set the thumbnail.
-                                  </p>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <label className="block text-xs font-bold uppercase text-muted-foreground">
+                                    Primary Age Group
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAddAgeGroupInput(!showAddAgeGroupInput)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                    <span>Add Option</span>
+                                  </button>
                                 </div>
 
-                                <label
-                                  id={`color-variant-upload-${cvIdx}`}
-                                  className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 transition shrink-0"
+                                {showAddAgeGroupInput && (
+                                  <div className="mb-2.5 flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/5 p-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                                    <input
+                                      type="text"
+                                      autoFocus
+                                      value={newAgeGroupInput}
+                                      onChange={(e) => setNewAgeGroupInput(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          handleAddCustomAgeGroup();
+                                        } else if (e.key === "Escape") {
+                                          setShowAddAgeGroupInput(false);
+                                          setNewAgeGroupInput("");
+                                        }
+                                      }}
+                                      placeholder="e.g. 6 - 9 Months, 6 - 7 Years"
+                                      className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs outline-none focus:border-primary"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddCustomAgeGroup()}
+                                      disabled={!newAgeGroupInput.trim()}
+                                      className="rounded-lg bg-primary px-3 py-1 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition cursor-pointer"
+                                    >
+                                      Add
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setShowAddAgeGroupInput(false);
+                                        setNewAgeGroupInput("");
+                                      }}
+                                      className="rounded-lg p-1 text-muted-foreground hover:bg-muted transition cursor-pointer"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                )}
+
+                                <select
+                                  value={productForm.ageGroup}
+                                  onChange={(e) => setProductForm({ ...productForm, ageGroup: e.target.value })}
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-sm font-semibold outline-none focus:border-primary focus:bg-background transition"
                                 >
-                                  {uploadingSlot === `color-${cvIdx}` && productImageUploading ? (
-                                    <>
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                      <span>Uploading...</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Upload className="h-3.5 w-3.5" />
-                                      <span>Upload Images for this Color</span>
-                                    </>
-                                  )}
-                                  <input
-                                    type="file"
-                                    multiple
-                                    accept="image/jpeg,image/png,image/webp"
-                                    className="hidden"
-                                    disabled={productImageUploading}
-                                    onChange={(e) => handleColorVariantImageUpload(e, cvIdx)}
-                                  />
-                                </label>
-                              </div>
+                                  {allAgeGroups.map((ag) => (
+                                    <option key={ag} value={ag}>
+                                      {ag} {!DEFAULT_AGE_GROUPS.includes(ag) ? " (Custom)" : ""}
+                                    </option>
+                                  ))}
+                                </select>
 
-                              {/* Uploaded Images Grid */}
-                              {(!cv.images || cv.images.length === 0) ? (
-                                <div className="rounded-xl border border-dashed border-border bg-background/50 p-6 text-center text-xs text-muted-foreground space-y-1">
-                                  <p className="font-bold">No images uploaded for {cv.displayName || cv.name} yet.</p>
-                                  <p className="text-[11px]">Click "Upload Images for this Color" above to upload photos.</p>
-                                </div>
-                              ) : (
-                                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3 pt-1">
-                                  {cv.images.map((imgObj, imgIdx) => {
-                                    const imgUrl = typeof imgObj === "string" ? imgObj : imgObj.url;
-                                    const isPrimary = typeof imgObj === "object" ? Boolean(imgObj.isPrimary) : imgIdx === 0;
+                                {/* Selectable chips for fast one-click selection and deletion */}
+                                <div className="flex flex-wrap gap-1.5 pt-2">
+                                  {allAgeGroups.map((ag) => {
+                                    const isSelected = productForm.ageGroup === ag;
+                                    const isCustom = !DEFAULT_AGE_GROUPS.includes(ag);
 
                                     return (
                                       <div
-                                        key={imgIdx}
-                                        className={`group relative rounded-xl overflow-hidden border-2 bg-background shadow-xs transition ${isPrimary ? "border-primary ring-2 ring-primary/30" : "border-border"
+                                        key={ag}
+                                        className={`group inline-flex items-center rounded-lg border text-[11px] font-bold transition-all ${isSelected
+                                          ? "border-primary bg-primary text-primary-foreground shadow-xs"
+                                          : "border-border bg-background text-foreground hover:border-primary/60"
                                           }`}
                                       >
-                                        <img src={imgUrl} alt={`${cv.name} ${imgIdx}`} className="h-24 w-full object-cover" />
-
-                                        {/* Primary Badge or Set Primary button */}
-                                        {isPrimary ? (
-                                          <span className="absolute top-1 left-1 rounded-md bg-primary px-1.5 py-0.5 text-[9px] font-black text-primary-foreground shadow-xs">
-                                            ★ Primary
-                                          </span>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() => handleSetPrimaryColorImage(cvIdx, imgIdx)}
-                                            className="absolute top-1 left-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-white opacity-0 group-hover:opacity-100 hover:bg-primary transition"
-                                            title="Set as primary image for this color"
-                                          >
-                                            Set Primary
-                                          </button>
-                                        )}
-
-                                        {/* Remove Button */}
                                         <button
                                           type="button"
-                                          onClick={() => handleRemoveColorVariantImage(cvIdx, imgIdx)}
-                                          className="absolute top-1 right-1 rounded-full bg-black/70 p-1 text-white opacity-0 group-hover:opacity-100 hover:bg-destructive transition"
-                                          title="Remove Image"
+                                          onClick={() => setProductForm({ ...productForm, ageGroup: ag })}
+                                          className="px-2.5 py-1 cursor-pointer flex items-center gap-1"
                                         >
-                                          <X className="h-3 w-3" />
+                                          <span>{ag}</span>
+                                          {isSelected && <Check className="h-3 w-3" />}
                                         </button>
+                                        {isCustom && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => handleRemoveCustomAgeGroup(ag, e)}
+                                            className={`pr-1.5 pl-0.5 py-1 text-[10px] hover:text-destructive transition cursor-pointer ${isSelected ? "text-primary-foreground/80 hover:text-white" : "text-muted-foreground"
+                                              }`}
+                                            title={`Remove custom option "${ag}"`}
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                        )}
                                       </div>
                                     );
                                   })}
                                 </div>
-                              )}
+                              </div>
                             </div>
 
-                            {/* Available Sizes Selection for this Color */}
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <label className="block text-xs font-bold uppercase text-muted-foreground">
-                                  Available Sizes for {cv.displayName || cv.name}
+                            {/* Fabric, Pattern */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
+                                  Fabric / Material <span className="normal-case font-normal text-muted-foreground/70">(Optional)</span>
                                 </label>
-                                <span className="text-[11px] text-muted-foreground">Check/uncheck sizes available in this color</span>
+                                <input
+                                  type="text"
+                                  value={productForm.fabric}
+                                  onChange={(e) => setProductForm({ ...productForm, fabric: e.target.value })}
+                                  placeholder="e.g. 100% GOTS Certified Organic Cotton"
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-sm outline-none focus:border-primary focus:bg-background"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
+                                  Pattern Style <span className="normal-case font-normal text-muted-foreground/70">(Optional)</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={productForm.pattern}
+                                  onChange={(e) => setProductForm({ ...productForm, pattern: e.target.value })}
+                                  placeholder="e.g. Floral, Polka Dots, Solid"
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-sm outline-none focus:border-primary focus:bg-background"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Optional Attributes: Sleeve, Neck, Fit, Season */}
+                          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-4 shadow-xs">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2 border-b border-border pb-3">
+                              <Tag className="h-4 w-4 text-primary" />
+                              <span>Cut &amp; Style Attributes</span>
+                            </h3>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label className="mb-1 block text-[11px] font-bold uppercase text-muted-foreground">
+                                  Sleeve Type
+                                </label>
+                                <select
+                                  value={productForm.sleeveType}
+                                  onChange={(e) => setProductForm({ ...productForm, sleeveType: e.target.value })}
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-semibold outline-none focus:border-primary focus:bg-background"
+                                >
+                                  <option value="">None / Not Specified</option>
+                                  {SLEEVE_TYPES.filter(Boolean).map((st) => (
+                                    <option key={st} value={st}>{st}</option>
+                                  ))}
+                                </select>
                               </div>
 
-                              <div className="flex flex-wrap gap-2">
-                                {AVAILABLE_SIZES.map((sz) => {
-                                  const isChecked = Array.isArray(cv.sizes) && cv.sizes.includes(sz);
+                              <div>
+                                <label className="mb-1 block text-[11px] font-bold uppercase text-muted-foreground">
+                                  Neck Type
+                                </label>
+                                <select
+                                  value={productForm.neckType}
+                                  onChange={(e) => setProductForm({ ...productForm, neckType: e.target.value })}
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-semibold outline-none focus:border-primary focus:bg-background"
+                                >
+                                  <option value="">None / Not Specified</option>
+                                  {NECK_TYPES.filter(Boolean).map((nt) => (
+                                    <option key={nt} value={nt}>{nt}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="mb-1 block text-[11px] font-bold uppercase text-muted-foreground">
+                                  Fit Type
+                                </label>
+                                <select
+                                  value={productForm.fitType}
+                                  onChange={(e) => setProductForm({ ...productForm, fitType: e.target.value })}
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-semibold outline-none focus:border-primary focus:bg-background"
+                                >
+                                  <option value="">None / Not Specified</option>
+                                  {FIT_TYPES.filter(Boolean).map((ft) => (
+                                    <option key={ft} value={ft}>{ft}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="mb-1 block text-[11px] font-bold uppercase text-muted-foreground">
+                                  Season
+                                </label>
+                                <select
+                                  value={productForm.season}
+                                  onChange={(e) => setProductForm({ ...productForm, season: e.target.value })}
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-semibold outline-none focus:border-primary focus:bg-background"
+                                >
+                                  <option value="">None / Not Specified</option>
+                                  {SEASONS.filter(Boolean).map((sn) => (
+                                    <option key={sn} value={sn}>{sn}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Column (6 cols): Dynamic Prints Multi-Select */}
+                        <div className="lg:col-span-6 space-y-6">
+                          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-4 shadow-xs h-full flex flex-col">
+                            <div className="flex items-center justify-between border-b border-border pb-3">
+                              <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2">
+                                <Sparkles className="h-4 w-4 text-primary" />
+                                <span>Print &amp; Pattern Options</span>
+                              </h3>
+                              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
+                                {productForm.prints?.length || 0} selected
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-muted-foreground">
+                              Select one or more prints that apply to this product. Customers can filter by these prints.
+                            </p>
+
+                            {prints.length === 0 ? (
+                              <div className="flex-1 rounded-2xl border border-dashed border-border bg-muted/10 p-6 text-center text-xs text-muted-foreground italic grid place-items-center">
+                                No prints found in database. You can add prints in the Prints manager.
+                              </div>
+                            ) : (
+                              <div className="flex-1 overflow-y-auto max-h-[360px] flex flex-wrap gap-2.5 rounded-2xl border border-border bg-muted/15 p-4 content-start">
+                                {prints.map((pr) => {
+                                  const pId = String(pr._id || pr.id || pr.name);
+                                  const isSelected = Array.isArray(productForm.prints) && productForm.prints.some((id) => String(id) === pId || String(id) === pr.id || String(id) === pr._id);
                                   return (
                                     <button
-                                      key={sz}
+                                      key={pId}
                                       type="button"
-                                      onClick={() => handleToggleSizeForColor(cvIdx, sz)}
-                                      className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${isChecked
-                                        ? "border-primary bg-primary text-primary-foreground shadow-xs scale-105"
-                                        : "border-border bg-muted/20 text-foreground hover:border-primary"
+                                      onClick={() => {
+                                        const current = Array.isArray(productForm.prints) ? [...productForm.prints] : [];
+                                        const idx = current.findIndex((id) => String(id) === pId || String(id) === pr.id || String(id) === pr._id);
+                                        let updated;
+                                        if (idx >= 0) {
+                                          updated = current.filter((_, i) => i !== idx);
+                                        } else {
+                                          updated = [...current, pr._id || pr.id];
+                                        }
+                                        setProductForm({
+                                          ...productForm,
+                                          prints: updated,
+                                          print: updated[0] ? String(updated[0]) : "",
+                                        });
+                                      }}
+                                      className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all cursor-pointer ${isSelected
+                                        ? "border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/20 scale-105"
+                                        : "border-border bg-card text-foreground hover:border-primary/60 hover:bg-muted/40"
                                         }`}
                                     >
-                                      {sz} {isChecked && "✓"}
+                                      <span className="text-sm">{pr.emoji || pr.icon || "✨"}</span>
+                                      <span>{pr.name}</span>
+                                      {isSelected && <Check className="h-3.5 w-3.5" />}
                                     </button>
                                   );
                                 })}
                               </div>
-                            </div>
-
-                            {/* Size-wise Inventory Table for this Color */}
-                            {Array.isArray(cv.inventory) && cv.inventory.length > 0 && (
-                              <div className="space-y-2">
-                                <label className="block text-xs font-bold uppercase text-muted-foreground">
-                                  Size-Wise Stock &amp; SKUs for {cv.displayName || cv.name}
-                                </label>
-                                <div className="overflow-x-auto rounded-xl border border-border">
-                                  <table className="w-full text-left text-xs">
-                                    <thead className="border-b border-border bg-muted/40 font-black uppercase text-muted-foreground text-[10px]">
-                                      <tr>
-                                        <th className="px-3 py-2">Size</th>
-                                        <th className="px-3 py-2">Stock / Inventory *</th>
-                                        <th className="px-3 py-2">Variant SKU</th>
-                                        <th className="px-3 py-2">Stock Status</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-border bg-card">
-                                      {cv.inventory.map((inv, invIdx) => {
-                                        const stockNum = Number(inv.stock) || 0;
-                                        const invStatus = stockNum <= 0 ? "Out of Stock" : (stockNum <= 5 ? "Low Stock" : "In Stock");
-
-                                        return (
-                                          <tr key={inv.size || invIdx} className="hover:bg-muted/10">
-                                            <td className="px-3 py-2 font-black text-foreground">
-                                              {inv.size}
-                                            </td>
-                                            <td className="px-3 py-2">
-                                              <input
-                                                type="number"
-                                                min="0"
-                                                value={inv.stock}
-                                                onChange={(e) => handleUpdateSizeStock(cvIdx, inv.size, e.target.value)}
-                                                className="w-24 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-bold outline-none focus:border-primary"
-                                              />
-                                            </td>
-                                            <td className="px-3 py-2">
-                                              <input
-                                                type="text"
-                                                value={inv.sku}
-                                                onChange={(e) => handleUpdateSizeSku(cvIdx, inv.size, e.target.value)}
-                                                className="w-44 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-mono uppercase outline-none focus:border-primary"
-                                              />
-                                            </td>
-                                            <td className="px-3 py-2">
-                                              <span
-                                                className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${invStatus === "In Stock"
-                                                  ? "bg-emerald-500/10 text-emerald-600"
-                                                  : invStatus === "Low Stock"
-                                                    ? "bg-amber-500/10 text-amber-600"
-                                                    : "bg-rose-500/10 text-rose-600"
-                                                  }`}
-                                              >
-                                                {invStatus}
-                                              </span>
-                                            </td>
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── TAB: PRODUCT VIDEOS (WATCH TO SHOP) ── */}
-                {productModalTab === "videos" && (
-                  <div className="space-y-6 animate-in fade-in duration-150" id="section-product-videos">
-                    {/* Header Banner */}
-                    <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/10 via-fuchsia-500/10 to-amber-500/10 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-2xl bg-primary text-primary-foreground grid place-items-center shrink-0 shadow-md">
-                          <Film className="h-5 w-5" />
                         </div>
+
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── TAB 3: COLOR-BASED PRODUCT VARIANTS & INVENTORY ── */}
+                  {productModalTab === "variants" && (
+                    <div id="section-product-variants" className="space-y-6 animate-in fade-in duration-150">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border pb-4 bg-muted/20 p-4 rounded-2xl">
                         <div>
-                          <h3 className="text-sm font-black text-foreground flex items-center gap-2">
-                            <span>Product Video Management</span>
-                            <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-black text-primary uppercase">
-                              Watch to Shop
-                            </span>
+                          <h3 className="text-sm font-black uppercase text-foreground flex items-center gap-2">
+                            <Boxes className="h-4 w-4 text-primary" />
+                            <span>Color-Based Product Variants &amp; Inventory</span>
                           </h3>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            Upload product video reels (MP4, MOV, WebM). Only products with uploaded videos will appear in the <strong>Watch to Shop</strong> sections.
+                            Each color has its own photos, selectable sizes, and exact size-wise inventory.
                           </p>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-black text-foreground shadow-2xs">
-                          {(Array.isArray(productForm.videos) ? productForm.videos.filter(Boolean).length : (productForm.video ? 1 : 0))} Video(s)
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Video Upload & URL Input Area */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Upload Box */}
-                      <div className="rounded-2xl border-2 border-dashed border-border bg-muted/20 p-5 flex flex-col items-center justify-center text-center hover:border-primary/60 transition group">
-                        <input
-                          type="file"
-                          ref={productVideoFileInputRef}
-                          accept="video/mp4,video/quicktime,video/webm,video/m4v,.mp4,.mov,.webm"
-                          multiple
-                          onChange={handleProductVideoUpload}
-                          className="hidden"
-                          id="product-video-file-input"
-                        />
-
-                        <div className="h-12 w-12 rounded-2xl bg-muted grid place-items-center text-primary group-hover:scale-110 transition-transform mb-3 shadow-2xs">
-                          {productVideoUploading ? (
-                            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                          ) : (
-                            <Upload className="h-6 w-6" />
-                          )}
-                        </div>
-
-                        <h4 className="text-xs font-black text-foreground">
-                          {productVideoUploading ? "Uploading video(s)..." : "Upload Video Files"}
-                        </h4>
-                        <p className="text-[11px] text-muted-foreground mt-1 max-w-xs">
-                          Supported formats: <strong>MP4, MOV, WebM</strong>. Up to 100MB per video.
-                        </p>
-
                         <button
                           type="button"
-                          disabled={productVideoUploading}
-                          onClick={() => productVideoFileInputRef.current?.click()}
-                          className="mt-4 flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                          onClick={handleAddColorVariant}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 transition active:scale-95 shrink-0 cursor-pointer"
                         >
-                          {productVideoUploading ? (
-                            <>
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              <span>Uploading to Cloud CDN...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="h-3.5 w-3.5" />
-                              <span>Select Video(s) to Upload</span>
-                            </>
-                          )}
+                          <Plus className="h-4 w-4" />
+                          <span>+ Add Another Color</span>
                         </button>
                       </div>
 
-                      {/* Direct URL / Instagram Box */}
-                      <div className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between space-y-3">
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                              <Cloud className="h-3.5 w-3.5 text-primary" />
-                              <span>Or Add Video by URL / Instagram Reel</span>
-                            </label>
-                            <span className="text-[10px] text-muted-foreground">Instagram, Cloudinary, MP4</span>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground">
-                            Paste an <strong>Instagram Reel link</strong> (e.g. <code>https://instagram.com/reel/...</code>) or direct MP4 video URL.
-                          </p>
-                        </div>
+                      {/* Color Variant Cards List */}
+                      <div className="space-y-6">
+                        {(productForm.colorVariants || []).map((cv, cvIdx) => {
+                          const totalCvStock = (cv.inventory || []).reduce((acc, inv) => acc + (Number(inv.stock) || 0), 0);
 
-                        <div className="space-y-2">
-                          <input
-                            type="url"
-                            value={videoInputUrl}
-                            onChange={(e) => setVideoInputUrl(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                handleAddVideoUrl();
-                              }
-                            }}
-                            placeholder="https://www.instagram.com/reel/... or https://.../video.mp4"
-                            className="w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:bg-background transition"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleAddVideoUrl}
-                            disabled={!videoInputUrl.trim()}
-                            className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-secondary hover:bg-secondary/80 px-4 py-2 text-xs font-bold text-foreground border border-border transition disabled:opacity-50 cursor-pointer"
-                          >
-                            <Plus className="h-3.5 w-3.5 text-primary" />
-                            <span>Add Video / Instagram Link</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                          return (
+                            <div
+                              key={cv.id || cvIdx}
+                              id={`color-variant-card-${cvIdx}`}
+                              className="rounded-3xl border-2 border-border bg-card p-6 space-y-6 shadow-sm transition hover:border-primary/40"
+                            >
+                              {/* Color Card Header */}
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
+                                <div className="flex items-center gap-3">
+                                  <span
+                                    className="h-9 w-9 rounded-full border-2 border-white shadow-md shrink-0"
+                                    style={{ backgroundColor: cv.hex || "#E5E7EB" }}
+                                  />
+                                  <div>
+                                    <h4 className="text-sm font-black text-foreground">
+                                      Color #{cvIdx + 1}: <span className="text-primary">{cv.displayName || cv.name}</span>
+                                    </h4>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      {cv.images?.length || 0} photo(s) · {cv.sizes?.length || 0} size(s) · {totalCvStock} total units
+                                    </p>
+                                  </div>
+                                </div>
 
-                    {/* Uploaded Videos Gallery */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                          <Video className="h-3.5 w-3.5 text-primary" />
-                          <span>Uploaded Product Videos ({Array.isArray(productForm.videos) ? productForm.videos.filter(Boolean).length : (productForm.video ? 1 : 0)})</span>
-                        </h4>
-                        {productForm.videos && productForm.videos.length > 1 && (
-                          <span className="text-[11px] text-muted-foreground">
-                            First video or starred video is used as Primary for Watch to Shop.
-                          </span>
-                        )}
-                      </div>
-
-                      {(!productForm.videos || productForm.videos.length === 0) && !productForm.video ? (
-                        <div className="rounded-2xl border border-dashed border-border bg-muted/10 p-8 text-center space-y-2">
-                          <div className="mx-auto h-12 w-12 rounded-full bg-muted/60 grid place-items-center text-muted-foreground">
-                            <Film className="h-6 w-6 opacity-60" />
-                          </div>
-                          <p className="text-xs font-bold text-foreground">No videos uploaded for this product yet</p>
-                          <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
-                            Upload an MP4 video or paste an Instagram Reel URL to automatically enable this product in the <strong>Watch to Shop</strong> carousel on the homepage and the floating player on the product page.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {(Array.isArray(productForm.videos) && productForm.videos.length > 0
-                            ? productForm.videos
-                            : [productForm.video]
-                          )
-                            .filter(Boolean)
-                            .map((vUrl, vIdx) => {
-                              const isPrimary = productForm.video === vUrl || (!productForm.video && vIdx === 0);
-                              const isInsta = isInstagramUrl(vUrl);
-                              const ext = vUrl.split(".").pop().split("?")[0].toUpperCase();
-                              const formatTag = isInsta ? "INSTAGRAM REEL" : (["MP4", "MOV", "WEBM", "M4V"].includes(ext) ? ext : "VIDEO");
-
-                              return (
-                                <div
-                                  key={vUrl + vIdx}
-                                  className={`group relative rounded-2xl border overflow-hidden bg-card transition shadow-sm ${
-                                    isPrimary
-                                      ? "border-primary ring-2 ring-primary/20"
-                                      : "border-border hover:border-border/80"
-                                  }`}
-                                >
-                                  {/* Video Player Preview */}
-                                  <div className="relative aspect-[9/12] sm:aspect-[9/14] max-h-64 w-full bg-black overflow-hidden flex items-center justify-center">
-                                    {isInsta ? (
-                                      <iframe
-                                        src={getInstagramEmbedUrl(vUrl)}
-                                        className="h-full w-full object-cover border-0"
-                                        title="Instagram Reel Preview"
-                                      />
-                                    ) : (
-                                      <video
-                                        src={vUrl}
-                                        controls
-                                        muted
-                                        loop
-                                        playsInline
-                                        preload="metadata"
-                                        className="h-full w-full object-cover"
-                                        onError={(e) => {
-                                          console.warn("Video preview error:", vUrl);
-                                        }}
-                                      />
-                                    )}
-
-                                    {/* Format Badge */}
-                                    <div className="absolute top-2 left-2 flex items-center gap-1 z-10">
-                                      <span className="rounded-md bg-black/70 backdrop-blur-xs px-2 py-0.5 text-[9px] font-black text-white uppercase tracking-wider">
-                                        {formatTag}
-                                      </span>
-                                      {isPrimary && (
-                                        <span className="rounded-md bg-primary text-primary-foreground px-2 py-0.5 text-[9px] font-black uppercase tracking-wider shadow-xs">
-                                          ⭐ Main Video
-                                        </span>
-                                      )}
-
-                                    </div>
-
-                                    {/* Delete Button */}
+                                <div className="flex items-center gap-2 self-end sm:self-auto">
+                                  {(productForm.colorVariants?.length || 0) > 1 && (
                                     <button
                                       type="button"
-                                      onClick={() => handleRemoveVideo(vIdx)}
-                                      className="absolute top-2 right-2 z-10 rounded-full bg-black/70 hover:bg-destructive text-white p-1.5 backdrop-blur-xs transition shadow-md cursor-pointer"
-                                      title="Remove Video"
+                                      onClick={() => handleRemoveColorVariant(cvIdx)}
+                                      className="inline-flex items-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/10 px-3.5 py-1.5 text-xs font-bold text-destructive hover:bg-destructive/20 transition cursor-pointer"
                                     >
                                       <Trash2 className="h-3.5 w-3.5" />
+                                      <span>Delete Color</span>
                                     </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* 2-Column Responsive Layout inside Color Card */}
+                              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                
+                                {/* Left Column (5 cols): Color Details & Sizes */}
+                                <div className="lg:col-span-5 space-y-5">
+                                  <div className="space-y-4 rounded-2xl border border-border/80 bg-muted/15 p-4">
+                                    <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Color Definition</h5>
+                                    
+                                    <div>
+                                      <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
+                                        Color Name *
+                                      </label>
+                                      <select
+                                        value={POPULAR_COLORS.some((c) => c.name.toLowerCase() === cv.name.toLowerCase()) ? cv.name : "__custom__"}
+                                        onChange={(e) => {
+                                          if (e.target.value === "__custom__") {
+                                            handleColorVariantChange(cvIdx, "name", "Custom Color");
+                                          } else {
+                                            handleColorVariantChange(cvIdx, "name", e.target.value);
+                                          }
+                                        }}
+                                        className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-bold outline-none focus:border-primary"
+                                      >
+                                        {POPULAR_COLORS.map((pc) => (
+                                          <option key={pc.name} value={pc.name}>{pc.name}</option>
+                                        ))}
+                                        <option value="__custom__">+ Custom Color Name...</option>
+                                      </select>
+                                      {!POPULAR_COLORS.some((c) => c.name.toLowerCase() === cv.name.toLowerCase()) && (
+                                        <input
+                                          type="text"
+                                          value={cv.name}
+                                          onChange={(e) => handleColorVariantChange(cvIdx, "name", e.target.value)}
+                                          placeholder="e.g. Royal Navy Blue"
+                                          className="mt-2 w-full rounded-xl border border-primary bg-background px-3.5 py-2 text-xs font-semibold outline-none"
+                                        />
+                                      )}
+                                    </div>
+
+                                    <div>
+                                      <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
+                                        Display Name (shown to customer)
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={cv.displayName || cv.name}
+                                        onChange={(e) => handleColorVariantChange(cvIdx, "displayName", e.target.value)}
+                                        placeholder="e.g. Sky Blue"
+                                        className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-semibold outline-none focus:border-primary"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
+                                        Color Hex Code
+                                      </label>
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="color"
+                                          value={cv.hex || "#3B82F6"}
+                                          onChange={(e) => handleColorVariantChange(cvIdx, "hex", e.target.value)}
+                                          className="h-10 w-12 cursor-pointer rounded-xl border border-border p-1 bg-background"
+                                        />
+                                        <input
+                                          type="text"
+                                          value={cv.hex || "#3B82F6"}
+                                          onChange={(e) => handleColorVariantChange(cvIdx, "hex", e.target.value)}
+                                          placeholder="#3B82F6"
+                                          className="flex-1 rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-mono uppercase font-bold outline-none focus:border-primary"
+                                        />
+                                      </div>
+                                    </div>
                                   </div>
 
-                                  {/* Card Footer Controls */}
-                                  <div className="p-3 bg-card border-t border-border space-y-2">
-                                    <div className="flex items-center justify-between text-[11px]">
-                                      <span className="font-mono text-muted-foreground truncate max-w-[150px]" title={vUrl}>
-                                        Video #{vIdx + 1}
-                                      </span>
+                                  {/* Available Sizes Selection for this Color */}
+                                  <div className="space-y-3 rounded-2xl border border-border/80 bg-muted/15 p-4">
+                                    <div className="flex items-center justify-between">
+                                      <label className="block text-xs font-bold uppercase text-muted-foreground">
+                                        Available Sizes ({cv.sizes?.length || 0})
+                                      </label>
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          navigator.clipboard?.writeText(vUrl);
-                                          showNotification("Copied video URL to clipboard!");
+                                          setActiveSizeColorIndex(activeSizeColorIndex === cvIdx && showAddSizeInput ? null : cvIdx);
+                                          setShowAddSizeInput(activeSizeColorIndex !== cvIdx || !showAddSizeInput);
                                         }}
-                                        className="text-[10px] text-muted-foreground hover:text-primary transition flex items-center gap-1 cursor-pointer"
+                                        className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline cursor-pointer"
                                       >
-                                        <Copy className="h-3 w-3" /> Copy URL
+                                        <Plus className="h-3 w-3" />
+                                        <span>Add Option</span>
                                       </button>
                                     </div>
 
-                                    <div className="flex items-center gap-2 pt-1">
-                                      {!isPrimary ? (
+                                    {showAddSizeInput && activeSizeColorIndex === cvIdx && (
+                                      <div className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/5 p-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                                        <input
+                                          type="text"
+                                          autoFocus
+                                          value={newSizeInput}
+                                          onChange={(e) => setNewSizeInput(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                              e.preventDefault();
+                                              handleAddCustomSize(newSizeInput, cvIdx);
+                                            } else if (e.key === "Escape") {
+                                              setShowAddSizeInput(false);
+                                              setNewSizeInput("");
+                                              setActiveSizeColorIndex(null);
+                                            }
+                                          }}
+                                          placeholder="e.g. 6 - 9 Months, 2XL, Custom Size"
+                                          className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs outline-none focus:border-primary"
+                                        />
                                         <button
                                           type="button"
-                                          onClick={() => handleSetPrimaryVideo(vIdx)}
-                                          className="w-full flex items-center justify-center gap-1 rounded-xl bg-muted hover:bg-primary/10 hover:text-primary py-1.5 text-[11px] font-bold text-foreground transition cursor-pointer"
+                                          onClick={() => handleAddCustomSize(newSizeInput, cvIdx)}
+                                          disabled={!newSizeInput.trim()}
+                                          className="rounded-lg bg-primary px-3 py-1 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition cursor-pointer"
                                         >
-                                          <Star className="h-3 w-3" /> Set as Main Video
+                                          Add
                                         </button>
-                                      ) : (
-                                        <div className="w-full flex items-center justify-center gap-1 rounded-xl bg-primary/10 py-1.5 text-[11px] font-black text-primary">
-                                          <Check className="h-3 w-3" /> Primary Watch to Shop Video
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setShowAddSizeInput(false);
+                                            setNewSizeInput("");
+                                            setActiveSizeColorIndex(null);
+                                          }}
+                                          className="rounded-lg p-1 text-muted-foreground hover:bg-muted transition cursor-pointer"
+                                        >
+                                          <X className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                    )}
+
+                                    <div className="flex flex-wrap gap-2">
+                                      {allAvailableSizes.map((sz) => {
+                                        const isChecked = Array.isArray(cv.sizes) && cv.sizes.includes(sz);
+                                        const isCustom = !DEFAULT_AVAILABLE_SIZES.includes(sz);
+                                        const isFreeSize = sz === "Free Size";
+
+                                        return (
+                                          <div
+                                            key={sz}
+                                            className={`group inline-flex items-center rounded-xl border text-xs font-bold transition-all ${isChecked
+                                              ? isFreeSize
+                                                ? "border-amber-500 bg-amber-500 text-white shadow-xs scale-105"
+                                                : "border-primary bg-primary text-primary-foreground shadow-xs scale-105"
+                                              : isFreeSize
+                                                ? "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:border-amber-500"
+                                                : "border-border bg-background text-foreground hover:border-primary"
+                                              }`}
+                                          >
+                                            <button
+                                              type="button"
+                                              onClick={() => handleToggleSizeForColor(cvIdx, sz)}
+                                              className="px-3 py-1.5 cursor-pointer flex items-center gap-1"
+                                            >
+                                              {isFreeSize && <Sparkles className="h-3 w-3 text-amber-200" />}
+                                              <span>{sz}</span>
+                                              {isChecked && <span>✓</span>}
+                                            </button>
+                                            {isCustom && (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => handleRemoveCustomSize(sz, e)}
+                                                className={`pr-2 pl-0.5 py-1.5 text-[10px] hover:text-destructive transition cursor-pointer ${isChecked ? "text-primary-foreground/80 hover:text-white" : "text-muted-foreground"
+                                                  }`}
+                                                title={`Remove custom size "${sz}"`}
+                                              >
+                                                <X className="h-3 w-3" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Right Column (7 cols): Photos & Angles Upload */}
+                                <div className="lg:col-span-7 space-y-4">
+                                  <div className="rounded-2xl border border-border bg-muted/20 p-5 space-y-4 h-full flex flex-col">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+                                      <div>
+                                        <span className="text-xs font-black uppercase text-foreground flex items-center gap-1.5">
+                                          <ImageIcon className="h-4 w-4 text-primary" />
+                                          <span>{cv.displayName || cv.name} Photos ({cv.images?.length || 0})</span>
+                                        </span>
+                                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                                          Upload photos for this color. Click ★ Primary to set the main thumbnail.
+                                        </p>
+                                      </div>
+
+                                      <label
+                                        id={`color-variant-upload-${cvIdx}`}
+                                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 transition shrink-0"
+                                      >
+                                        {uploadingSlot === `color-${cvIdx}` && productImageUploading ? (
+                                          <>
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            <span>Uploading...</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Upload className="h-3.5 w-3.5" />
+                                            <span>Upload Photos</span>
+                                          </>
+                                        )}
+                                        <input
+                                          type="file"
+                                          multiple
+                                          accept="image/jpeg,image/png,image/webp"
+                                          className="hidden"
+                                          disabled={productImageUploading}
+                                          onChange={(e) => handleColorVariantImageUpload(e, cvIdx)}
+                                        />
+                                      </label>
+                                    </div>
+
+                                    {/* Uploaded Images Grid */}
+                                    {(!cv.images || cv.images.length === 0) ? (
+                                      <div className="flex-1 rounded-2xl border border-dashed border-border bg-background/50 p-8 text-center text-xs text-muted-foreground space-y-2 grid place-items-center">
+                                        <div className="space-y-1">
+                                          <div className="mx-auto h-10 w-10 rounded-full bg-muted grid place-items-center text-muted-foreground">
+                                            <ImageIcon className="h-5 w-5 opacity-60" />
+                                          </div>
+                                          <p className="font-bold text-foreground">No photos uploaded for {cv.displayName || cv.name} yet</p>
+                                          <p className="text-[11px]">Click "Upload Photos" above to add product shots for this color variant.</p>
                                         </div>
+                                      </div>
+                                    ) : (
+                                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-1">
+                                        {cv.images.map((imgObj, imgIdx) => {
+                                          const imgUrl = typeof imgObj === "string" ? imgObj : imgObj.url;
+                                          const isPrimary = typeof imgObj === "object" ? Boolean(imgObj.isPrimary) : imgIdx === 0;
+
+                                          return (
+                                            <div
+                                              key={imgIdx}
+                                              className={`group relative rounded-xl overflow-hidden border-2 bg-background shadow-xs transition aspect-square ${isPrimary ? "border-primary ring-2 ring-primary/30" : "border-border"
+                                                }`}
+                                            >
+                                              <img src={imgUrl} alt={`${cv.name} ${imgIdx}`} className="h-full w-full object-cover" />
+
+                                              {/* Primary Badge or Set Primary button */}
+                                              {isPrimary ? (
+                                                <span className="absolute top-1.5 left-1.5 rounded-md bg-primary px-2 py-0.5 text-[9px] font-black text-primary-foreground shadow-xs">
+                                                  ★ Primary
+                                                </span>
+                                              ) : (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleSetPrimaryColorImage(cvIdx, imgIdx)}
+                                                  className="absolute top-1.5 left-1.5 rounded-md bg-black/70 px-2 py-0.5 text-[9px] font-bold text-white opacity-0 group-hover:opacity-100 hover:bg-primary transition cursor-pointer"
+                                                  title="Set as primary image for this color"
+                                                >
+                                                  Set Primary
+                                                </button>
+                                              )}
+
+                                              {/* Remove Button */}
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRemoveColorVariantImage(cvIdx, imgIdx)}
+                                                className="absolute top-1.5 right-1.5 rounded-full bg-black/70 p-1 text-white opacity-0 group-hover:opacity-100 hover:bg-destructive transition cursor-pointer"
+                                                title="Remove Image"
+                                              >
+                                                <X className="h-3.5 w-3.5" />
+                                              </button>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                              </div>
+
+                              {/* Size-wise Inventory Table for this Color (Full Width in card) */}
+                              {Array.isArray(cv.inventory) && cv.inventory.length > 0 && (
+                                <div className="space-y-3 pt-2 border-t border-border">
+                                  <div className="flex items-center justify-between">
+                                    <label className="block text-xs font-black uppercase text-foreground flex items-center gap-1.5">
+                                      <Boxes className="h-3.5 w-3.5 text-primary" />
+                                      <span>Size-Wise Stock &amp; SKUs for {cv.displayName || cv.name}</span>
+                                    </label>
+                                    <span className="text-[11px] text-muted-foreground font-medium">
+                                      Total: {totalCvStock} units across {cv.inventory.length} size(s)
+                                    </span>
+                                  </div>
+                                  <div className="overflow-x-auto rounded-2xl border border-border">
+                                    <table className="w-full text-left text-xs">
+                                      <thead className="border-b border-border bg-muted/50 font-black uppercase text-muted-foreground text-[10px]">
+                                        <tr>
+                                          <th className="px-4 py-2.5">Size</th>
+                                          <th className="px-4 py-2.5">Stock / Inventory *</th>
+                                          <th className="px-4 py-2.5">Variant SKU</th>
+                                          <th className="px-4 py-2.5">Stock Status</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-border bg-card">
+                                        {cv.inventory.map((inv, invIdx) => {
+                                          const stockNum = Number(inv.stock) || 0;
+                                          const invStatus = stockNum <= 0 ? "Out of Stock" : (stockNum <= 5 ? "Low Stock" : "In Stock");
+
+                                          return (
+                                            <tr key={inv.size || invIdx} className="hover:bg-muted/15 transition">
+                                              <td className="px-4 py-2.5 font-black text-foreground text-xs sm:text-sm">
+                                                {inv.size}
+                                              </td>
+                                              <td className="px-4 py-2.5">
+                                                <input
+                                                  type="number"
+                                                  min="0"
+                                                  value={inv.stock}
+                                                  onChange={(e) => handleUpdateSizeStock(cvIdx, inv.size, e.target.value)}
+                                                  className="w-32 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-bold outline-none focus:border-primary"
+                                                />
+                                              </td>
+                                              <td className="px-4 py-2.5">
+                                                <input
+                                                  type="text"
+                                                  value={inv.sku}
+                                                  onChange={(e) => handleUpdateSizeSku(cvIdx, inv.size, e.target.value)}
+                                                  placeholder={`e.g. ${productForm.sku || "SUN"}-${inv.size}`}
+                                                  className="w-56 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-mono uppercase outline-none focus:border-primary"
+                                                />
+                                              </td>
+                                              <td className="px-4 py-2.5">
+                                                <span
+                                                  className={`inline-block rounded-full px-3 py-0.5 text-[10px] font-black uppercase ${invStatus === "In Stock"
+                                                    ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                                                    : invStatus === "Low Stock"
+                                                      ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                                                      : "bg-rose-500/10 text-rose-600 border border-rose-500/20"
+                                                    }`}
+                                                >
+                                                  {invStatus}
+                                                </span>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── TAB: PRODUCT VIDEOS (WATCH TO SHOP) ── */}
+                  {productModalTab === "videos" && (
+                    <div className="space-y-6 animate-in fade-in duration-150" id="section-product-videos">
+                      {/* Header Banner */}
+                      <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/10 via-fuchsia-500/10 to-amber-500/10 p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                        <div className="flex items-center gap-3.5">
+                          <div className="h-11 w-11 rounded-2xl bg-primary text-primary-foreground grid place-items-center shrink-0 shadow-md">
+                            <Film className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm sm:text-base font-black text-foreground flex items-center gap-2">
+                              <span>Product Video Management</span>
+                              <span className="rounded-full bg-primary/20 px-2.5 py-0.5 text-[10px] font-black text-primary uppercase">
+                                Watch to Shop
+                              </span>
+                            </h3>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Upload product video reels (MP4, MOV, WebM). Only products with uploaded videos will appear in the <strong>Watch to Shop</strong> sections.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="rounded-xl border border-border bg-card px-3.5 py-1.5 text-xs font-black text-foreground shadow-2xs">
+                            {(Array.isArray(productForm.videos) ? productForm.videos.filter(Boolean).length : (productForm.video ? 1 : 0))} Video(s)
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        {/* Left Column (5 cols): Upload & Direct URL box */}
+                        <div className="lg:col-span-5 space-y-5">
+                          {/* Upload Box */}
+                          <div className="rounded-2xl border-2 border-dashed border-border bg-card p-6 flex flex-col items-center justify-center text-center hover:border-primary/60 transition group shadow-xs">
+                            <input
+                              type="file"
+                              ref={productVideoFileInputRef}
+                              accept="video/mp4,video/quicktime,video/webm,video/m4v,.mp4,.mov,.webm"
+                              multiple
+                              onChange={handleProductVideoUpload}
+                              className="hidden"
+                              id="product-video-file-input"
+                            />
+
+                            <div className="h-14 w-14 rounded-2xl bg-primary/10 grid place-items-center text-primary group-hover:scale-110 transition-transform mb-3 shadow-2xs">
+                              {productVideoUploading ? (
+                                <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                              ) : (
+                                <Upload className="h-7 w-7" />
+                              )}
+                            </div>
+
+                            <h4 className="text-sm font-black text-foreground">
+                              {productVideoUploading ? "Uploading video(s)..." : "Upload Video Files"}
+                            </h4>
+                            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                              Supported formats: <strong>MP4, MOV, WebM</strong>. Up to 100MB per video.
+                            </p>
+
+                            <button
+                              type="button"
+                              disabled={productVideoUploading}
+                              onClick={() => productVideoFileInputRef.current?.click()}
+                              className="mt-4 flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-md hover:bg-primary/90 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                            >
+                              {productVideoUploading ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <span>Uploading to Cloud CDN...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="h-4 w-4" />
+                                  <span>Select Video(s) to Upload</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Direct URL / Instagram Box */}
+                          <div className="rounded-2xl border border-border bg-card p-6 flex flex-col justify-between space-y-4 shadow-xs">
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                  <Cloud className="h-4 w-4 text-primary" />
+                                  <span>Or Add Video by URL / Instagram Reel</span>
+                                </label>
+                                <span className="text-[10px] text-muted-foreground font-semibold">Instagram, CDN, MP4</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Paste an <strong>Instagram Reel link</strong> (e.g. <code>https://instagram.com/reel/...</code>) or direct MP4 video URL.
+                              </p>
+                            </div>
+
+                            <div className="space-y-2.5">
+                              <input
+                                type="url"
+                                value={videoInputUrl}
+                                onChange={(e) => setVideoInputUrl(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleAddVideoUrl();
+                                  }
+                                }}
+                                placeholder="https://www.instagram.com/reel/... or https://.../video.mp4"
+                                className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs font-mono outline-none focus:border-primary focus:bg-background transition"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleAddVideoUrl}
+                                disabled={!videoInputUrl.trim()}
+                                className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-secondary hover:bg-secondary/80 px-4 py-2.5 text-xs font-bold text-foreground border border-border transition disabled:opacity-50 cursor-pointer"
+                              >
+                                <Plus className="h-4 w-4 text-primary" />
+                                <span>Add Video / Instagram Link</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Column (7 cols): Uploaded Videos Gallery */}
+                        <div className="lg:col-span-7 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                              <Video className="h-4 w-4 text-primary" />
+                              <span>Uploaded Product Videos ({Array.isArray(productForm.videos) ? productForm.videos.filter(Boolean).length : (productForm.video ? 1 : 0)})</span>
+                            </h4>
+                            {productForm.videos && productForm.videos.length > 1 && (
+                              <span className="text-[11px] text-muted-foreground">
+                                Starred video is used as Primary for Watch to Shop.
+                              </span>
+                            )}
+                          </div>
+
+                          {(!productForm.videos || productForm.videos.length === 0) && !productForm.video ? (
+                            <div className="rounded-2xl border border-dashed border-border bg-muted/10 p-10 text-center space-y-2">
+                              <div className="mx-auto h-12 w-12 rounded-full bg-muted/60 grid place-items-center text-muted-foreground">
+                                <Film className="h-6 w-6 opacity-60" />
+                              </div>
+                              <p className="text-xs font-bold text-foreground">No videos uploaded for this product yet</p>
+                              <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
+                                Upload an MP4 video or paste an Instagram Reel URL to automatically enable this product in the <strong>Watch to Shop</strong> carousel on the homepage and the floating player on the product page.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {(Array.isArray(productForm.videos) && productForm.videos.length > 0
+                                ? productForm.videos
+                                : [productForm.video]
+                              )
+                                .filter(Boolean)
+                                .map((vUrl, vIdx) => {
+                                  const isPrimary = productForm.video === vUrl || (!productForm.video && vIdx === 0);
+                                  const isInsta = isInstagramUrl(vUrl);
+                                  const ext = vUrl.split(".").pop().split("?")[0].toUpperCase();
+                                  const formatTag = isInsta ? "INSTAGRAM REEL" : (["MP4", "MOV", "WEBM", "M4V"].includes(ext) ? ext : "VIDEO");
+
+                                  return (
+                                    <div
+                                      key={vUrl + vIdx}
+                                      className={`group relative rounded-2xl border overflow-hidden bg-card transition shadow-sm ${
+                                        isPrimary
+                                          ? "border-primary ring-2 ring-primary/20"
+                                          : "border-border hover:border-border/80"
+                                      }`}
+                                    >
+                                      {/* Video Player Preview */}
+                                      <div className="relative aspect-[9/12] sm:aspect-[9/14] max-h-64 w-full bg-black overflow-hidden flex items-center justify-center">
+                                        {isInsta ? (
+                                          <iframe
+                                            src={getInstagramEmbedUrl(vUrl)}
+                                            className="h-full w-full object-cover border-0"
+                                            title="Instagram Reel Preview"
+                                          />
+                                        ) : (
+                                          <video
+                                            src={vUrl}
+                                            controls
+                                            muted
+                                            loop
+                                            playsInline
+                                            preload="metadata"
+                                            className="h-full w-full object-cover"
+                                            onError={(e) => {
+                                              console.warn("Video preview error:", vUrl);
+                                            }}
+                                          />
+                                        )}
+
+                                        {/* Format Badge */}
+                                        <div className="absolute top-2 left-2 flex items-center gap-1 z-10">
+                                          <span className="rounded-md bg-black/70 backdrop-blur-xs px-2 py-0.5 text-[9px] font-black text-white uppercase tracking-wider">
+                                            {formatTag}
+                                          </span>
+                                          {isPrimary && (
+                                            <span className="rounded-md bg-primary text-primary-foreground px-2 py-0.5 text-[9px] font-black uppercase tracking-wider shadow-xs">
+                                              ⭐ Main Video
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* Delete Button */}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveVideo(vIdx)}
+                                          className="absolute top-2 right-2 z-10 rounded-full bg-black/70 hover:bg-destructive text-white p-1.5 backdrop-blur-xs transition shadow-md cursor-pointer"
+                                          title="Remove Video"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+
+                                      {/* Card Footer Controls */}
+                                      <div className="p-3 bg-card border-t border-border space-y-2">
+                                        <div className="flex items-center justify-between text-[11px]">
+                                          <span className="font-mono text-muted-foreground truncate max-w-[150px]" title={vUrl}>
+                                            Video #{vIdx + 1}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              navigator.clipboard?.writeText(vUrl);
+                                              showNotification("Copied video URL to clipboard!");
+                                            }}
+                                            className="text-[10px] text-muted-foreground hover:text-primary transition flex items-center gap-1 cursor-pointer"
+                                          >
+                                            <Copy className="h-3 w-3" /> Copy URL
+                                          </button>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 pt-1">
+                                          {!isPrimary ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleSetPrimaryVideo(vIdx)}
+                                              className="w-full flex items-center justify-center gap-1 rounded-xl bg-muted hover:bg-primary/10 hover:text-primary py-1.5 text-[11px] font-bold text-foreground transition cursor-pointer"
+                                            >
+                                              <Star className="h-3 w-3" /> Set as Main Video
+                                            </button>
+                                          ) : (
+                                            <div className="w-full flex items-center justify-center gap-1 rounded-xl bg-primary/10 py-1.5 text-[11px] font-black text-primary">
+                                              <Check className="h-3 w-3" /> Primary Watch to Shop Video
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── TAB 4: PRICING & STOCK CALCULATION ── */}
+                  {productModalTab === "pricing" && (
+                    <div className="space-y-6 animate-in fade-in duration-150">
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        
+                        {/* Left Column (6 cols): Pricing, Cost & Analytics */}
+                        <div className="lg:col-span-6 space-y-6">
+                          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-5 shadow-xs">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2 border-b border-border pb-3">
+                              <IndianRupee className="h-4 w-4 text-primary" />
+                              <span>Base Pricing &amp; Margin Engine</span>
+                            </h3>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Selling Price (₹) *
+                                </label>
+                                <input
+                                  id="input-product-price"
+                                  type="number"
+                                  required
+                                  min="0"
+                                  value={productForm.price}
+                                  onChange={(e) => {
+                                    const newPrice = e.target.value;
+                                    const newMrp = productForm.mrp || newPrice;
+                                    setProductForm({
+                                      ...productForm,
+                                      price: newPrice,
+                                      discount: calcDiscount(newPrice, newMrp),
+                                    });
+                                  }}
+                                  placeholder="599"
+                                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm font-black outline-none focus:border-primary"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  MRP / Original (₹)
+                                </label>
+                                <input
+                                  id="input-product-mrp"
+                                  type="number"
+                                  min="0"
+                                  value={productForm.mrp}
+                                  onChange={(e) => {
+                                    const newMrp = e.target.value;
+                                    setProductForm({
+                                      ...productForm,
+                                      mrp: newMrp,
+                                      discount: calcDiscount(productForm.price, newMrp),
+                                    });
+                                  }}
+                                  placeholder="799"
+                                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm font-bold outline-none focus:border-primary"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Mfg. Cost (₹)
+                                </label>
+                                <input
+                                  id="input-product-manufacturing-cost"
+                                  type="number"
+                                  min="0"
+                                  value={productForm.manufacturingCost}
+                                  onChange={(e) => {
+                                    setProductForm({
+                                      ...productForm,
+                                      manufacturingCost: e.target.value,
+                                    });
+                                  }}
+                                  placeholder="200"
+                                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm font-bold outline-none focus:border-primary"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Real-time Profit & Margin Calculation Display */}
+                            {(() => {
+                              const sellingPrice = Number(productForm.price) || 0;
+                              const costPrice = Number(productForm.manufacturingCost) || 0;
+                              const hasCost = productForm.manufacturingCost !== "" && !isNaN(costPrice) && costPrice > 0;
+                              const profit = sellingPrice - costPrice;
+                              const marginPercent = sellingPrice > 0 ? ((profit / sellingPrice) * 100).toFixed(1) : 0;
+                              const isProfitable = profit >= 0;
+
+                              return (
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border">
+                                  {/* Discount Badge */}
+                                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 flex flex-col justify-between">
+                                    <span className="text-[11px] font-bold text-muted-foreground uppercase">Customer Discount</span>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      <span className="text-base font-black text-emerald-600">
+                                        {calcDiscount(productForm.price, productForm.mrp || productForm.price)}% OFF
+                                      </span>
+                                      {productForm.mrp && Number(productForm.mrp) > sellingPrice && (
+                                        <span className="text-[10px] text-muted-foreground">
+                                          (Save ₹{(Number(productForm.mrp) - sellingPrice).toLocaleString()})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Profit per Unit Display */}
+                                  <div className={`rounded-xl border p-3 flex flex-col justify-between transition ${
+                                    !hasCost
+                                      ? "border-border bg-background/60"
+                                      : isProfitable
+                                        ? "border-emerald-500/30 bg-emerald-500/10"
+                                        : "border-rose-500/30 bg-rose-500/10"
+                                  }`}>
+                                    <span className="text-[11px] font-bold text-muted-foreground uppercase flex items-center justify-between">
+                                      <span>Profit per Unit</span>
+                                      <span className="text-[9px] font-mono lowercase text-muted-foreground font-normal">selling - cost</span>
+                                    </span>
+                                    <div className="flex items-center gap-1 mt-1">
+                                      {!hasCost ? (
+                                        <span className="text-xs text-muted-foreground font-semibold">
+                                          Enter cost
+                                        </span>
+                                      ) : (
+                                        <span className={`text-base font-black ${isProfitable ? "text-emerald-600" : "text-rose-600"}`}>
+                                          {profit >= 0 ? `+₹${profit.toLocaleString()}` : `-₹${Math.abs(profit).toLocaleString()}`}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Profit Margin % */}
+                                  <div className={`rounded-xl border p-3 flex flex-col justify-between transition ${
+                                    !hasCost
+                                      ? "border-border bg-background/60"
+                                      : isProfitable
+                                        ? "border-primary/30 bg-primary/5"
+                                        : "border-rose-500/30 bg-rose-500/10"
+                                  }`}>
+                                    <span className="text-[11px] font-bold text-muted-foreground uppercase">Profit Margin</span>
+                                    <div className="flex items-center gap-1 mt-1">
+                                      {!hasCost ? (
+                                        <span className="text-xs text-muted-foreground font-semibold">—</span>
+                                      ) : (
+                                        <span className={`text-base font-black ${isProfitable ? "text-primary" : "text-rose-600"}`}>
+                                          {marginPercent}%
+                                        </span>
                                       )}
                                     </div>
                                   </div>
                                 </div>
                               );
-                            })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                            })()}
 
-                {/* ── TAB 4: PRICING & STOCK CALCULATION ── */}
-                {productModalTab === "pricing" && (
-                  <div className="space-y-5 animate-in fade-in duration-150">
-                    <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-4">
-                      <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                        <IndianRupee className="h-4 w-4 text-primary" />
-                        <span>Base Pricing &amp; Auto Discount</span>
-                      </h3>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                          <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                            Selling Price (₹) *
-                          </label>
-                          <input
-                            id="input-product-price"
-                            type="number"
-                            required
-                            min="0"
-                            value={productForm.price}
-                            onChange={(e) => {
-                              const newPrice = e.target.value;
-                              const newMrp = productForm.mrp || newPrice;
-                              setProductForm({
-                                ...productForm,
-                                price: newPrice,
-                                discount: calcDiscount(newPrice, newMrp),
-                              });
-                            }}
-                            placeholder="599"
-                            className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm font-bold outline-none focus:border-primary"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                            MRP / Original Price (₹)
-                          </label>
-                          <input
-                            id="input-product-mrp"
-                            type="number"
-                            min="0"
-                            value={productForm.mrp}
-                            onChange={(e) => {
-                              const newMrp = e.target.value;
-                              setProductForm({
-                                ...productForm,
-                                mrp: newMrp,
-                                discount: calcDiscount(productForm.price, newMrp),
-                              });
-                            }}
-                            placeholder="799"
-                            className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm font-bold outline-none focus:border-primary"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                            Calculated Discount
-                          </label>
-                          <div className="flex items-center h-[38px] px-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs font-black text-emerald-600">
-                            {calcDiscount(productForm.price, productForm.mrp || productForm.price)}% OFF
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border">
-                        <div>
-                          <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                            GST / Tax Rate (%)
-                          </label>
-                          <input
-                            id="input-product-gst"
-                            type="number"
-                            min="0"
-                            value={productForm.gst}
-                            onChange={(e) => setProductForm({ ...productForm, gst: Number(e.target.value) })}
-                            placeholder="5"
-                            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold outline-none focus:border-primary"
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                            Product Badge (Optional)
-                          </label>
-                          <input
-                            id="input-product-badge"
-                            type="text"
-                            value={productForm.badge}
-                            onChange={(e) => setProductForm({ ...productForm, badge: e.target.value })}
-                            placeholder="e.g. New, Organic, Best Seller"
-                            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold outline-none focus:border-primary"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Auto-Calculated Total Inventory Stock Box */}
-                    {(() => {
-                      const totalCalculatedStock = (productForm.colorVariants || []).reduce((sum, cv) => {
-                        const cvInv = Array.isArray(cv.inventory) ? cv.inventory : [];
-                        return sum + cvInv.reduce((iSum, inv) => iSum + (Math.max(0, parseInt(inv.stock, 10) || 0)), 0);
-                      }, 0);
-
-                      const totalVariantsCount = (productForm.colorVariants || []).reduce((sum, cv) => sum + (cv.inventory?.length || 0), 0);
-                      const computedStockStatus = getStockStatus(totalCalculatedStock, productForm.lowStockThreshold);
-
-                      return (
-                        <div className="rounded-2xl border-2 border-primary/30 bg-primary/5 p-4 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
-                              <Boxes className="h-4 w-4" />
-                              <span>Total Product Inventory (Auto-Computed)</span>
-                            </h3>
-                            <span
-                              className={`rounded-full px-3 py-0.5 text-xs font-black uppercase tracking-wide border ${computedStockStatus === "In Stock"
-                                ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                                : computedStockStatus === "Low Stock"
-                                  ? "border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
-                                  : "border-rose-500 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
-                                }`}
-                            >
-                              {computedStockStatus}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="rounded-xl border border-border bg-background p-3.5">
-                              <p className="text-[11px] font-bold text-muted-foreground uppercase">Sum of Variant Stocks</p>
-                              <p className="text-2xl font-black text-foreground mt-0.5">
-                                {totalCalculatedStock} <span className="text-xs font-normal text-muted-foreground">total units</span>
-                              </p>
-                              <p className="text-[11px] text-muted-foreground mt-1">
-                                Across {productForm.colorVariants?.length || 0} colors &amp; {totalVariantsCount} size combinations
-                              </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border">
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  GST / Tax Rate (%)
+                                </label>
+                                <input
+                                  id="input-product-gst"
+                                  type="number"
+                                  min="0"
+                                  value={productForm.gst}
+                                  onChange={(e) => setProductForm({ ...productForm, gst: Number(e.target.value) })}
+                                  placeholder="5"
+                                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-primary"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Product Badge (Optional)
+                                </label>
+                                <input
+                                  id="input-product-badge"
+                                  type="text"
+                                  value={productForm.badge}
+                                  onChange={(e) => setProductForm({ ...productForm, badge: e.target.value })}
+                                  placeholder="e.g. New, Organic, Best Seller"
+                                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-primary"
+                                />
+                              </div>
                             </div>
+                          </div>
+                        </div>
+
+                        {/* Right Column (6 cols): Inventory & Publishing Status */}
+                        <div className="lg:col-span-6 space-y-6">
+                          {/* Auto-Calculated Total Inventory Stock Box */}
+                          {(() => {
+                            const totalCalculatedStock = (productForm.colorVariants || []).reduce((sum, cv) => {
+                              const cvInv = Array.isArray(cv.inventory) ? cv.inventory : [];
+                              return sum + cvInv.reduce((iSum, inv) => iSum + (Math.max(0, parseInt(inv.stock, 10) || 0)), 0);
+                            }, 0);
+
+                            const totalVariantsCount = (productForm.colorVariants || []).reduce((sum, cv) => sum + (cv.inventory?.length || 0), 0);
+                            const computedStockStatus = getStockStatus(totalCalculatedStock, productForm.lowStockThreshold);
+
+                            return (
+                              <div className="rounded-2xl border-2 border-primary/30 bg-primary/5 p-5 sm:p-6 space-y-5 shadow-xs">
+                                <div className="flex items-center justify-between border-b border-primary/20 pb-3">
+                                  <h3 className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-2">
+                                    <Boxes className="h-4 w-4" />
+                                    <span>Total Product Inventory (Auto-Computed)</span>
+                                  </h3>
+                                  <span
+                                    className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-wide border ${computedStockStatus === "In Stock"
+                                      ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                                      : computedStockStatus === "Low Stock"
+                                        ? "border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                                        : "border-rose-500 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
+                                      }`}
+                                  >
+                                    {computedStockStatus}
+                                  </span>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="rounded-xl border border-border bg-card p-4">
+                                    <p className="text-[11px] font-bold text-muted-foreground uppercase">Sum of Variant Stocks</p>
+                                    <p className="text-3xl font-black text-foreground mt-1">
+                                      {totalCalculatedStock} <span className="text-xs font-normal text-muted-foreground">total units</span>
+                                    </p>
+                                    <p className="text-[11px] text-muted-foreground mt-1.5">
+                                      Across {productForm.colorVariants?.length || 0} colors &amp; {totalVariantsCount} size combinations
+                                    </p>
+                                  </div>
+
+                                  <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+                                    <label className="block text-xs font-bold uppercase text-muted-foreground">
+                                      Low Stock Alert Threshold
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={productForm.lowStockThreshold}
+                                      onChange={(e) => setProductForm({ ...productForm, lowStockThreshold: Number(e.target.value) })}
+                                      placeholder="10"
+                                      className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm font-bold outline-none focus:border-primary"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground">
+                                      Triggers "Low Stock" badge when total quantity falls below this value.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-4 shadow-xs">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2 border-b border-border pb-3">
+                              <Tag className="h-4 w-4 text-primary" />
+                              <span>Catalog Publishing &amp; Visibility</span>
+                            </h3>
 
                             <div>
-                              <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                                Low Stock Alert Threshold
+                              <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                Publishing Status
                               </label>
-                              <input
-                                type="number"
-                                min="0"
-                                value={productForm.lowStockThreshold}
-                                onChange={(e) => setProductForm({ ...productForm, lowStockThreshold: Number(e.target.value) })}
-                                placeholder="10"
-                                className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm font-bold outline-none focus:border-primary"
-                              />
-                              <p className="text-[10px] text-muted-foreground mt-1">
-                                Triggers "Low Stock" badge when total quantity falls below this value.
-                              </p>
+                              <select
+                                value={productForm.status}
+                                onChange={(e) => setProductForm({ ...productForm, status: e.target.value })}
+                                className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs font-bold outline-none focus:border-primary focus:bg-background"
+                              >
+                                {PRODUCT_STATUSES.map((st) => (
+                                  <option key={st} value={st}>{st}</option>
+                                ))}
+                              </select>
                             </div>
                           </div>
                         </div>
-                      );
-                    })()}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Publishing Status
-                        </label>
-                        <select
-                          value={productForm.status}
-                          onChange={(e) => setProductForm({ ...productForm, status: e.target.value })}
-                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold outline-none focus:border-primary"
-                        >
-                          {PRODUCT_STATUSES.map((st) => (
-                            <option key={st} value={st}>{st}</option>
-                          ))}
-                        </select>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* ── TAB 5: ADDITIONAL SPECIFICATIONS ── */}
-                {productModalTab === "extra" && (
-                  <div className="space-y-4 animate-in fade-in duration-150">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Care Instructions
-                        </label>
-                        <input
-                          type="text"
-                          value={productForm.careInstructions}
-                          onChange={(e) => setProductForm({ ...productForm, careInstructions: e.target.value })}
-                          placeholder="Machine wash cold with gentle detergent..."
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-xs outline-none focus:border-primary"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Wash Care
-                        </label>
-                        <input
-                          type="text"
-                          value={productForm.washCare}
-                          onChange={(e) => setProductForm({ ...productForm, washCare: e.target.value })}
-                          placeholder="Gentle Hand/Machine Wash"
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-xs outline-none focus:border-primary"
-                        />
+                  {/* ── TAB 5: ADDITIONAL SPECIFICATIONS ── */}
+                  {productModalTab === "extra" && (
+                    <div className="space-y-6 animate-in fade-in duration-150">
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        
+                        {/* Left Column (6 cols): Specifications & Logistics */}
+                        <div className="lg:col-span-6 space-y-6">
+                          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-4 shadow-xs">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2 border-b border-border pb-3">
+                              <Layers className="h-4 w-4 text-primary" />
+                              <span>Care &amp; Garment Specifications</span>
+                            </h3>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Care Instructions
+                                </label>
+                                <input
+                                  type="text"
+                                  value={productForm.careInstructions}
+                                  onChange={(e) => setProductForm({ ...productForm, careInstructions: e.target.value })}
+                                  placeholder="Machine wash cold with gentle detergent..."
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs outline-none focus:border-primary focus:bg-background"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Wash Care
+                                </label>
+                                <input
+                                  type="text"
+                                  value={productForm.washCare}
+                                  onChange={(e) => setProductForm({ ...productForm, washCare: e.target.value })}
+                                  placeholder="Gentle Hand/Machine Wash"
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs outline-none focus:border-primary focus:bg-background"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-border">
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Country of Origin
+                                </label>
+                                <input
+                                  type="text"
+                                  value={productForm.countryOfOrigin}
+                                  onChange={(e) => setProductForm({ ...productForm, countryOfOrigin: e.target.value })}
+                                  placeholder="India"
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs outline-none focus:border-primary focus:bg-background"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Manufacturer
+                                </label>
+                                <input
+                                  type="text"
+                                  value={productForm.manufacturer}
+                                  onChange={(e) => setProductForm({ ...productForm, manufacturer: e.target.value })}
+                                  placeholder="Little Sunbeam Kidswear"
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs outline-none focus:border-primary focus:bg-background"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Product Weight
+                                </label>
+                                <input
+                                  type="text"
+                                  value={productForm.productWeight}
+                                  onChange={(e) => setProductForm({ ...productForm, productWeight: e.target.value })}
+                                  placeholder="e.g. 150g"
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs outline-none focus:border-primary focus:bg-background"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border">
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Return / Exchange Eligibility
+                                </label>
+                                <input
+                                  type="text"
+                                  value={productForm.returnEligibility}
+                                  onChange={(e) => setProductForm({ ...productForm, returnEligibility: e.target.value })}
+                                  placeholder="7-Day Return & Exchange Available"
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs outline-none focus:border-primary focus:bg-background"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1.5 block text-xs font-bold uppercase text-muted-foreground">
+                                  Search Tags (Comma separated)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={productForm.tags}
+                                  onChange={(e) => setProductForm({ ...productForm, tags: e.target.value })}
+                                  placeholder="romper, organic, newborn, summer"
+                                  className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs outline-none focus:border-primary focus:bg-background"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Column (6 cols): Size Chart Image Upload */}
+                        <div className="lg:col-span-6 space-y-6">
+                          <div className="rounded-2xl border-2 border-dashed border-border bg-card p-5 sm:p-6 space-y-4 shadow-xs h-full flex flex-col justify-between">
+                            <div className="space-y-3">
+                              <div className="flex items-start gap-3">
+                                <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary grid place-items-center shrink-0 mt-0.5 border border-primary/20">
+                                  <Ruler className="h-4 w-4" />
+                                </div>
+                                <div>
+                                  <h4 className="text-xs font-black uppercase tracking-wider text-foreground">
+                                    Product Size Chart Image (Optional)
+                                  </h4>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    Upload a custom size chart image for this product. Customers will see a <strong>"📏 Size Chart"</strong> popup button on the product details page.
+                                  </p>
+                                </div>
+                              </div>
+
+                              <input
+                                type="file"
+                                ref={sizeChartFileInputRef}
+                                accept="image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                disabled={sizeChartImageUploading}
+                                onChange={handleSizeChartImageUpload}
+                              />
+                            </div>
+
+                            {/* Size Chart Image Preview */}
+                            {productForm.sizeChartImage ? (
+                              <div className="rounded-2xl border border-border bg-muted/20 p-4 flex flex-col sm:flex-row items-center gap-4">
+                                <div className="relative group max-w-[220px] h-32 rounded-xl overflow-hidden border border-border bg-card shrink-0 shadow-xs">
+                                  <img
+                                    src={productForm.sizeChartImage}
+                                    alt="Product Size Chart"
+                                    className="h-full w-full object-contain p-1"
+                                  />
+                                  <a
+                                    href={productForm.sizeChartImage}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition"
+                                  >
+                                    <Eye className="h-4 w-4 mr-1" /> View Full
+                                  </a>
+                                </div>
+
+                                <div className="flex-1 min-w-0 space-y-2 text-center sm:text-left">
+                                  <div className="flex items-center gap-2 justify-center sm:justify-start">
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2.5 py-0.5 text-[10px] font-black uppercase">
+                                      <Check className="h-3 w-3" /> Size Chart Active
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground truncate font-mono text-[11px]" title={productForm.sizeChartImage}>
+                                    {productForm.sizeChartImage}
+                                  </p>
+                                  <div className="flex items-center gap-3 justify-center sm:justify-start pt-1">
+                                    <button
+                                      type="button"
+                                      disabled={sizeChartImageUploading}
+                                      onClick={() => sizeChartFileInputRef.current?.click()}
+                                      className="text-xs font-bold text-primary hover:underline cursor-pointer"
+                                    >
+                                      Change Image
+                                    </button>
+                                    <span className="text-border">|</span>
+                                    <button
+                                      type="button"
+                                      onClick={handleRemoveSizeChartImage}
+                                      className="inline-flex items-center gap-1 text-xs font-bold text-destructive hover:underline cursor-pointer"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" /> Remove
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="rounded-2xl border border-dashed border-border/80 bg-muted/10 p-6 text-center space-y-3">
+                                <div className="mx-auto h-12 w-12 rounded-2xl bg-muted/60 grid place-items-center text-muted-foreground">
+                                  <Ruler className="h-6 w-6 opacity-60" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-foreground">No custom size chart uploaded yet</p>
+                                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                                    If omitted, the default size measurements table will be shown to customers.
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={sizeChartImageUploading}
+                                  onClick={() => sizeChartFileInputRef.current?.click()}
+                                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                                >
+                                  {sizeChartImageUploading ? (
+                                    <>
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      <span>Uploading Size Chart...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Upload className="h-3.5 w-3.5" />
+                                      <span>Upload Size Chart Image</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
                       </div>
                     </div>
+                  )}
+                </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Country of Origin
-                        </label>
-                        <input
-                          type="text"
-                          value={productForm.countryOfOrigin}
-                          onChange={(e) => setProductForm({ ...productForm, countryOfOrigin: e.target.value })}
-                          placeholder="India"
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-xs outline-none focus:border-primary"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Manufacturer
-                        </label>
-                        <input
-                          type="text"
-                          value={productForm.manufacturer}
-                          onChange={(e) => setProductForm({ ...productForm, manufacturer: e.target.value })}
-                          placeholder="Little Sunbeam Kidswear"
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-xs outline-none focus:border-primary"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Product Weight
-                        </label>
-                        <input
-                          type="text"
-                          value={productForm.productWeight}
-                          onChange={(e) => setProductForm({ ...productForm, productWeight: e.target.value })}
-                          placeholder="e.g. 150g"
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-xs outline-none focus:border-primary"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Return / Exchange Eligibility
-                        </label>
-                        <input
-                          type="text"
-                          value={productForm.returnEligibility}
-                          onChange={(e) => setProductForm({ ...productForm, returnEligibility: e.target.value })}
-                          placeholder="7-Day Return & Exchange Available"
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-xs outline-none focus:border-primary"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-bold uppercase text-muted-foreground">
-                          Search Tags (Comma separated)
-                        </label>
-                        <input
-                          type="text"
-                          value={productForm.tags}
-                          onChange={(e) => setProductForm({ ...productForm, tags: e.target.value })}
-                          placeholder="romper, organic, newborn, summer"
-                          className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-xs outline-none focus:border-primary"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Modal Footer Controls */}
-                <div className="flex items-center justify-between pt-4 border-t border-border mt-6">
+                {/* Sticky Modal Footer Controls */}
+                <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-card/95 backdrop-blur-md shrink-0 shadow-lg">
                   <button
                     type="button"
                     onClick={() => setProductModalOpen(false)}
-                    className="rounded-full px-5 py-2 text-xs font-bold hover:bg-muted transition"
+                    className="rounded-xl border border-border px-5 py-2.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
                   >
                     Cancel
                   </button>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     {productModalTab !== "basic" && (
                       <button
                         type="button"
@@ -5594,9 +6355,9 @@ function AdminPage() {
                           const currIdx = tabs.indexOf(productModalTab);
                           if (currIdx > 0) setProductModalTab(tabs[currIdx - 1]);
                         }}
-                        className="rounded-full border border-border px-4 py-2 text-xs font-bold text-foreground hover:bg-muted transition"
+                        className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold text-foreground hover:bg-muted transition cursor-pointer"
                       >
-                        Back
+                        ← Back
                       </button>
                     )}
 
@@ -5608,7 +6369,7 @@ function AdminPage() {
                           const currIdx = tabs.indexOf(productModalTab);
                           if (currIdx < tabs.length - 1) setProductModalTab(tabs[currIdx + 1]);
                         }}
-                        className="rounded-full bg-secondary px-5 py-2 text-xs font-bold text-foreground hover:bg-secondary/80 transition"
+                        className="rounded-xl bg-secondary px-5 py-2.5 text-xs font-bold text-foreground hover:bg-secondary/80 transition cursor-pointer"
                       >
                         Next Step →
                       </button>
@@ -5617,9 +6378,9 @@ function AdminPage() {
                     <button
                       type="submit"
                       disabled={productSaving}
-                      className="flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-xs font-black text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 transition disabled:opacity-50"
+                      className="flex items-center gap-2 rounded-xl bg-primary px-7 py-2.5 text-xs font-black text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 transition disabled:opacity-50 cursor-pointer"
                     >
-                      {productSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      {productSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                       <span>{editingProduct ? "Save Changes" : "Create Product"}</span>
                     </button>
                   </div>

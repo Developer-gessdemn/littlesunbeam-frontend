@@ -70,6 +70,7 @@ function CheckoutPage() {
     loginCustomer,
     registerCustomer,
     updateCustomerProfile,
+    codEnabled,
   } = useShop();
 
   const [step, setStep] = useState(isCustomerLoggedIn ? "shipping" : "auth");
@@ -110,7 +111,100 @@ function CheckoutPage() {
 
   const [isEditingAddress, setIsEditingAddress] = useState(!isSavedAddressComplete);
 
+  // Real-time reactive COD status (from context + localStorage + storage events)
+  const getIsCodAvailable = () => {
+    try {
+      const explicit = localStorage.getItem("little_sunbeam_cod_enabled");
+      if (explicit !== null) return explicit === "true";
+      const stored = localStorage.getItem("little_sunbeam_settings");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.codEnabled === "boolean") return parsed.codEnabled;
+      }
+    } catch { }
+    return codEnabled !== false;
+  };
+
+  const [isCodOptionEnabled, setIsCodOptionEnabled] = useState(getIsCodAvailable);
+
+  useEffect(() => {
+    setIsCodOptionEnabled(getIsCodAvailable());
+  }, [codEnabled]);
+
+  useEffect(() => {
+    // 1. Fetch latest authoritative settings directly from backend
+    adminService
+      .getSettings()
+      .then((s) => {
+        if (typeof s?.codEnabled === "boolean") {
+          setIsCodOptionEnabled(s.codEnabled);
+        }
+      })
+      .catch(() => {});
+
+    // 2. Real-time BroadcastChannel listener for instant cross-tab sync
+    let bc;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("little_sunbeam_broadcast_channel");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "COD_UPDATED" && typeof event.data.codEnabled === "boolean") {
+            setIsCodOptionEnabled(event.data.codEnabled);
+          }
+        };
+      }
+    } catch { }
+
+    const handleUpdate = (e) => {
+      if (e?.detail && typeof e.detail.codEnabled === "boolean") {
+        setIsCodOptionEnabled(e.detail.codEnabled);
+      } else if (typeof e?.detail === "boolean") {
+        setIsCodOptionEnabled(e.detail);
+      } else {
+        setIsCodOptionEnabled(getIsCodAvailable());
+      }
+    };
+
+    const handleStorage = (e) => {
+      if (e.key === "little_sunbeam_settings" || e.key === "little_sunbeam_cod_enabled") {
+        setIsCodOptionEnabled(getIsCodAvailable());
+      }
+    };
+
+    const handleFocus = () => {
+      setIsCodOptionEnabled(getIsCodAvailable());
+    };
+
+    // 3. Heartbeat interval check every 800ms
+    const intervalTimer = setInterval(() => {
+      const current = getIsCodAvailable();
+      setIsCodOptionEnabled((prev) => (prev !== current ? current : prev));
+    }, 800);
+
+    window.addEventListener("settings_updated", handleUpdate);
+    window.addEventListener("cod_updated", handleUpdate);
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(intervalTimer);
+      if (bc) {
+        try { bc.close(); } catch { }
+      }
+      window.removeEventListener("settings_updated", handleUpdate);
+      window.removeEventListener("cod_updated", handleUpdate);
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
+
   const [paymentMethod, setPaymentMethod] = useState("razorpay");
+
+  useEffect(() => {
+    if (!isCodOptionEnabled && paymentMethod === "cod") {
+      setPaymentMethod("razorpay");
+    }
+  }, [isCodOptionEnabled, paymentMethod]);
   const [upiId, setUpiId] = useState("");
   const [cardData, setCardData] = useState({ number: "", name: "", expiry: "", cvv: "" });
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
@@ -738,13 +832,17 @@ function CheckoutPage() {
                         icon: ShieldCheck,
                         badge: "Fast & Secure",
                       },
-                      {
-                        id: "cod",
-                        title: "Cash on Delivery (COD)",
-                        subtitle: "Pay in cash at your doorstep upon delivery",
-                        icon: Banknote,
-                        badge: "Pay at Doorstep",
-                      },
+                      ...(isCodOptionEnabled
+                        ? [
+                            {
+                              id: "cod",
+                              title: "Cash on Delivery (COD)",
+                              subtitle: "Pay in cash at your doorstep upon delivery",
+                              icon: Banknote,
+                              badge: "Pay at Doorstep",
+                            },
+                          ]
+                        : []),
                     ].map(({ id, title, subtitle, icon: Icon, badge }) => {
                       const active = paymentMethod === id || (id === "razorpay" && paymentMethod !== "cod");
                       return (

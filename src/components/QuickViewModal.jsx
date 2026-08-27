@@ -230,10 +230,10 @@ export default function QuickViewModal({ product, open, onClose }) {
               )}
             </div>
 
-            {/* TAB NAVIGATION: Details | Reviews | Discussion */}
+            {/* TAB NAVIGATION: Details | Reviews */}
             <div className="mt-2">
               <div className="flex items-center gap-4 sm:gap-6 border-b border-neutral-200 pb-2 overflow-x-auto">
-                {["Details", "Reviews", "Discussion"].map((tab) => (
+                {["Details", "Reviews"].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -273,12 +273,6 @@ export default function QuickViewModal({ product, open, onClose }) {
                         No customer reviews yet.
                       </div>
                     )}
-                  </div>
-                )}
-                {activeTab === "Discussion" && (
-                  <div className="rounded-xl bg-neutral-50 p-3 border border-neutral-200 space-y-1">
-                    <p className="font-bold text-black">Q: Is this true to size?</p>
-                    <p>A: Yes! Order your regular size for an oversize fit.</p>
                   </div>
                 )}
               </div>

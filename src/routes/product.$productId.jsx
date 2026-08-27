@@ -270,7 +270,7 @@ function ProductDetailsPage() {
   const [toastMessage, setToastMessage] = useState("");
   const [added, setAdded] = useState(false);
 
-  // ─── Database-Backed Review State & Discussions ───────────────────────────
+  // ─── Database-Backed Review State ─────────────────────────────────────────
   const [reviewsList, setReviewsList] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [submittingReview, setSubmittingReview] = useState(false);
@@ -283,10 +283,6 @@ function ProductDetailsPage() {
     averageRating: null,
     totalReviews: 0,
   });
-
-  const [discussionsList, setDiscussionsList] = useState([]);
-  const [newQuestion, setNewQuestion] = useState("");
-  const [showQuestionForm, setShowQuestionForm] = useState(false);
 
   const currentProdId = String(product?._id || product?.id || productId || "");
 
@@ -553,22 +549,6 @@ function ProductDetailsPage() {
     }
   };
 
-  const handleAddQuestion = (e) => {
-    e.preventDefault();
-    if (!newQuestion.trim()) return;
-    const item = {
-      id: Date.now(),
-      user: customer?.name || "Guest User",
-      question: newQuestion,
-      answer: "Thank you for asking! Our support team will answer shortly.",
-      date: "Just now",
-    };
-    setDiscussionsList([item, ...discussionsList]);
-    setNewQuestion("");
-    setShowQuestionForm(false);
-    showToast("Question submitted! We will respond soon.");
-  };
-
   const recommendedProducts = (products || [])
     .filter((p) => String(p._id || p.id) !== currentProdId)
     .slice(0, 4);
@@ -582,89 +562,6 @@ function ProductDetailsPage() {
         <div className="fixed top-20 right-5 z-50 rounded-full bg-neutral-900 px-5 py-3 text-xs font-bold text-white shadow-2xl animate-in fade-in slide-in-from-top-4 flex items-center gap-2">
           <Check className="h-4 w-4 text-emerald-400" />
           <span>{toastMessage}</span>
-        </div>
-      )}
-
-      {/* Size Guide Modal */}
-      {sizeGuideOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="relative w-full max-w-xl rounded-3xl bg-white p-6 sm:p-8 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setSizeGuideOpen(false)}
-              className="absolute right-5 top-5 grid h-9 w-9 place-items-center rounded-full bg-neutral-100 text-neutral-500 hover:bg-neutral-200 hover:text-black transition cursor-pointer"
-              aria-label="Close Size Guide"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="flex items-center gap-2 mb-4">
-              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-50 text-amber-600">
-                <Ruler className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-neutral-900">Baby Size Guide</h3>
-                <p className="text-xs text-neutral-500">Standard Little Sunbeam Clothing Fit Chart</p>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-neutral-200 mt-4">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-neutral-50 text-[11px] font-extrabold uppercase tracking-wider text-neutral-600 border-b border-neutral-200">
-                  <tr>
-                    <th className="py-3 px-4">Size</th>
-                    <th className="py-3 px-4">Age Range</th>
-                    <th className="py-3 px-4">Height (cm)</th>
-                    <th className="py-3 px-4">Weight (kg)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100 font-medium text-neutral-800">
-                  <tr className="hover:bg-neutral-50/50">
-                    <td className="py-2.5 px-4 font-bold text-black">Newborn</td>
-                    <td className="py-2.5 px-4">0 - 1 Month</td>
-                    <td className="py-2.5 px-4">Up to 55 cm</td>
-                    <td className="py-2.5 px-4">Up to 3.5 kg</td>
-                  </tr>
-                  <tr className="hover:bg-neutral-50/50">
-                    <td className="py-2.5 px-4 font-bold text-black">0 - 3 Months</td>
-                    <td className="py-2.5 px-4">1 - 3 Months</td>
-                    <td className="py-2.5 px-4">55 - 62 cm</td>
-                    <td className="py-2.5 px-4">3.5 - 6.0 kg</td>
-                  </tr>
-                  <tr className="hover:bg-neutral-50/50">
-                    <td className="py-2.5 px-4 font-bold text-black">3 - 6 Months</td>
-                    <td className="py-2.5 px-4">3 - 6 Months</td>
-                    <td className="py-2.5 px-4">62 - 68 cm</td>
-                    <td className="py-2.5 px-4">6.0 - 8.0 kg</td>
-                  </tr>
-                  <tr className="hover:bg-neutral-50/50">
-                    <td className="py-2.5 px-4 font-bold text-black">6 - 12 Months</td>
-                    <td className="py-2.5 px-4">6 - 12 Months</td>
-                    <td className="py-2.5 px-4">68 - 76 cm</td>
-                    <td className="py-2.5 px-4">8.0 - 10.5 kg</td>
-                  </tr>
-                  <tr className="hover:bg-neutral-50/50">
-                    <td className="py-2.5 px-4 font-bold text-black">1 - 2 Years</td>
-                    <td className="py-2.5 px-4">12 - 24 Months</td>
-                    <td className="py-2.5 px-4">76 - 86 cm</td>
-                    <td className="py-2.5 px-4">10.5 - 13.0 kg</td>
-                  </tr>
-                  <tr className="hover:bg-neutral-50/50">
-                    <td className="py-2.5 px-4 font-bold text-black">2 - 3 Years</td>
-                    <td className="py-2.5 px-4">24 - 36 Months</td>
-                    <td className="py-2.5 px-4">86 - 98 cm</td>
-                    <td className="py-2.5 px-4">13.0 - 15.5 kg</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-4 rounded-2xl bg-amber-50/60 border border-amber-100 p-3.5 text-xs text-amber-900">
-              <p className="font-semibold flex items-center gap-1.5">
-                <Info className="h-4 w-4 shrink-0 text-amber-600" />
-                <span>Tip: If your baby is between two sizes, we always recommend choosing the larger size for a relaxed, comfortable fit with room to grow.</span>
-              </p>
-            </div>
-          </div>
         </div>
       )}
 
@@ -988,10 +885,10 @@ function ProductDetailsPage() {
                   <button
                     type="button"
                     onClick={() => setSizeGuideOpen(true)}
-                    className="flex items-center gap-1 font-bold text-neutral-500 hover:text-black underline underline-offset-4 transition cursor-pointer"
+                    className="flex items-center gap-1.5 font-bold transition cursor-pointer text-primary hover:underline underline-offset-4"
                   >
-                    <Ruler className="h-3.5 w-3.5" />
-                    <span>Size Guide</span>
+                    <Ruler className="h-3.5 w-3.5 text-primary" />
+                    <span>{product?.sizeChartImage ? "Size Chart" : "Size Guide"}</span>
                   </button>
                 </div>
 
@@ -1171,7 +1068,7 @@ function ProductDetailsPage() {
 
                 {/* Horizontal Tabs Header */}
                 <div className="flex items-center gap-4 sm:gap-6 border-b border-neutral-200 pb-2.5 overflow-x-auto scrollbar-none">
-                  {["Details", "Additional Info", "Reviews", "Discussion"].map((tab) => (
+                  {["Details", "Additional Info", "Reviews"].map((tab) => (
                     <button
                       key={tab}
                       type="button"
@@ -1678,64 +1575,6 @@ function ProductDetailsPage() {
                       )}
                     </div>
                   )}
-
-                  {/* 4. DISCUSSION TAB */}
-                  {activeTab === "Discussion" && (
-                    <div className="space-y-4 animate-in fade-in">
-                      <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-3 rounded-2xl bg-neutral-50 border border-neutral-200 p-4">
-                        <div>
-                          <h4 className="font-extrabold text-xs sm:text-sm text-neutral-900">Have a Question?</h4>
-                          <p className="text-[11px] text-neutral-500 mt-0.5">Ask about sizing, fabric or delivery</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowQuestionForm(!showQuestionForm)}
-                          className="w-full sm:w-auto rounded-full bg-black px-4 py-2 text-xs font-bold text-white hover:bg-neutral-800 transition cursor-pointer text-center"
-                        >
-                          {showQuestionForm ? "Cancel" : "Ask Question"}
-                        </button>
-                      </div>
-
-                      {showQuestionForm && (
-                        <form onSubmit={handleAddQuestion} className="rounded-2xl border border-neutral-200 p-4 space-y-3 bg-white shadow-2xs">
-                          <textarea
-                            required
-                            rows={3}
-                            placeholder="Type your question about size, material, delivery..."
-                            value={newQuestion}
-                            onChange={(e) => setNewQuestion(e.target.value)}
-                            className="w-full rounded-xl border border-neutral-200 p-2.5 text-xs outline-none focus:border-black"
-                          />
-                          <button
-                            type="submit"
-                            className="rounded-full bg-black px-5 py-2 text-xs font-bold text-white hover:bg-neutral-800 transition cursor-pointer"
-                          >
-                            Submit Question
-                          </button>
-                        </form>
-                      )}
-
-                      {discussionsList.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-neutral-200 p-6 text-center bg-white">
-                          <p className="text-xs font-semibold text-neutral-500">No questions yet. Have a question? Ask above!</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2.5">
-                          {discussionsList.map((disc) => (
-                            <div key={disc.id} className="rounded-2xl border border-neutral-200 p-3.5 space-y-1.5 bg-white shadow-2xs">
-                              <div className="flex items-center justify-between text-xs font-bold text-neutral-900 gap-2">
-                                <span className="break-words">Q: {disc.question}</span>
-                                <span className="text-[10px] text-neutral-400 font-normal shrink-0">{disc.date}</span>
-                              </div>
-                              <div className="rounded-xl bg-neutral-50 p-2.5 text-xs text-neutral-700 border border-neutral-100 break-words">
-                                <span className="font-bold text-black">A: </span> {disc.answer}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -1762,6 +1601,155 @@ function ProductDetailsPage() {
           {/* Floating Product Video Player (Watch to Shop) */}
           <ProductFloatingVideo product={product} />
         </main>
+      )}
+
+      {/* ─── SIZE GUIDE & SIZE CHART MODAL ──────────────────────────────── */}
+      {sizeGuideOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setSizeGuideOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl border border-neutral-200 bg-white shadow-2xl overflow-hidden animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-neutral-200 px-6 py-4 bg-neutral-50/80">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-2xl bg-black text-white grid place-items-center shrink-0 shadow-xs">
+                  <Ruler className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-neutral-900 flex items-center gap-2">
+                    <span>{product?.sizeChartImage ? "Product Size Chart" : "Baby Size Guide"}</span>
+                    {product?.sizeChartImage && (
+                      <span className="rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                        Product Specific
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">
+                    {product?.name || "Little Sunbeam Baby Clothing"}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSizeGuideOpen(false)}
+                className="rounded-full p-2 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-900 transition cursor-pointer"
+                aria-label="Close size guide"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+              {/* If custom size chart image was uploaded by admin, show image ONLY */}
+              {product?.sizeChartImage ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-neutral-900">
+                      Garment Measurement Chart
+                    </span>
+                    <a
+                      href={product.sizeChartImage}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                    >
+                      <span>Open Full Size</span>
+                      <span>↗</span>
+                    </a>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-2 sm:p-4 overflow-hidden flex items-center justify-center min-h-[220px]">
+                    <img
+                      src={product.sizeChartImage}
+                      alt={`${product.name || "Product"} Size Chart`}
+                      className="w-full max-h-[500px] object-contain rounded-xl"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Standard Baby Sizing Table (Fallback when no custom chart uploaded) */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-neutral-900">
+                        Standard Baby Sizing Chart
+                      </h4>
+                      <span className="text-[11px] text-neutral-400 font-medium">All measurements approximate</span>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-neutral-200">
+                      <table className="w-full text-left text-xs">
+                        <thead className="border-b border-neutral-200 bg-neutral-100/70 font-black uppercase text-neutral-600 text-[10px]">
+                          <tr>
+                            <th className="px-3.5 py-2.5">Size / Age</th>
+                            <th className="px-3.5 py-2.5">Baby Height</th>
+                            <th className="px-3.5 py-2.5">Chest</th>
+                            <th className="px-3.5 py-2.5">Weight (approx)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-100 bg-white">
+                          {[
+                            { size: "Newborn", height: "45 – 52 cm", chest: "35 – 38 cm", weight: "2.5 – 3.8 kg" },
+                            { size: "0 - 3 Months", height: "52 – 62 cm", chest: "38 – 42 cm", weight: "3.8 – 5.8 kg" },
+                            { size: "3 - 6 Months", height: "62 – 68 cm", chest: "42 – 45 cm", weight: "5.8 – 7.8 kg" },
+                            { size: "6 - 12 Months", height: "68 – 76 cm", chest: "45 – 48 cm", weight: "7.8 – 10.2 kg" },
+                            { size: "1 - 2 Years", height: "76 – 86 cm", chest: "48 – 51 cm", weight: "10.2 – 12.8 kg" },
+                            { size: "2 - 3 Years", height: "86 – 94 cm", chest: "51 – 54 cm", weight: "12.8 – 15.0 kg" },
+                            { size: "3 - 4 Years", height: "94 – 102 cm", chest: "54 – 57 cm", weight: "15.0 – 17.5 kg" },
+                          ].map((row, rIdx) => {
+                            const isSelectedRow = (selectedSize || "").toLowerCase() === row.size.toLowerCase();
+                            return (
+                              <tr
+                                key={rIdx}
+                                className={`transition ${isSelectedRow ? "bg-amber-500/10 font-bold" : "hover:bg-neutral-50"}`}
+                              >
+                                <td className="px-3.5 py-2.5 font-extrabold text-neutral-900 flex items-center gap-1.5">
+                                  <span>{row.size}</span>
+                                  {isSelectedRow && (
+                                    <span className="rounded-full bg-black text-white text-[9px] px-1.5 py-0.2 font-black">
+                                      Selected
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3.5 py-2.5 text-neutral-600">{row.height}</td>
+                                <td className="px-3.5 py-2.5 text-neutral-600">{row.chest}</td>
+                                <td className="px-3.5 py-2.5 text-neutral-600">{row.weight}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Sizing Tip */}
+                  <div className="flex items-start gap-3 rounded-2xl bg-amber-50 border border-amber-200/80 p-3.5 text-xs text-amber-900">
+                    <Info className="h-4 w-4 shrink-0 mt-0.5 text-amber-700" />
+                    <p>
+                      <strong>Parent Sizing Tip:</strong> Babies grow fast! If your baby is between two sizes or in the higher percentile for weight/height, we recommend ordering one size up for a relaxed and comfortable fit.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end border-t border-neutral-200 px-6 py-3.5 bg-neutral-50">
+              <button
+                type="button"
+                onClick={() => setSizeGuideOpen(false)}
+                className="rounded-full bg-black px-6 py-2 text-xs font-bold text-white hover:bg-neutral-800 transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <SiteFooter />

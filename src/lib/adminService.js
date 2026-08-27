@@ -1093,4 +1093,51 @@ export const adminService = {
       return { success: true, isLiveBackend: false };
     }
   },
+
+  // 13. Site Settings (COD toggle, etc.)
+  async getSettings() {
+    try {
+      const res = await apiRequest("/settings");
+      const settings = res.data || { codEnabled: true };
+      try {
+        localStorage.setItem("little_sunbeam_settings", JSON.stringify(settings));
+      } catch { }
+      return { ...settings, isLiveBackend: true };
+    } catch {
+      try {
+        const stored = localStorage.getItem("little_sunbeam_settings");
+        if (stored) return { ...JSON.parse(stored), isLiveBackend: false };
+      } catch { }
+      return { codEnabled: true, isLiveBackend: false };
+    }
+  },
+
+  async updateSettings(settings) {
+    try {
+      const res = await apiRequest("/settings", {
+        method: "PUT",
+        body: JSON.stringify(settings),
+      });
+      const updated = res.data || settings;
+      try {
+        localStorage.setItem("little_sunbeam_settings", JSON.stringify(updated));
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("settings_updated", { detail: updated }));
+        }
+      } catch { }
+      return { ...updated, isLiveBackend: true };
+    } catch {
+      try {
+        const existing = JSON.parse(localStorage.getItem("little_sunbeam_settings") || "{}");
+        const merged = { ...existing, ...settings };
+        localStorage.setItem("little_sunbeam_settings", JSON.stringify(merged));
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("settings_updated", { detail: merged }));
+        }
+        return { ...merged, isLiveBackend: false };
+      } catch {
+        return { ...settings, isLiveBackend: false };
+      }
+    }
+  },
 };
