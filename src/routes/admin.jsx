@@ -70,6 +70,7 @@ import {
 } from "recharts";
 import { adminService, getAdminAuth, clearAdminAuth } from "@/lib/adminService";
 import { useShop } from "@/context/ShopContext.jsx";
+import { isInstagramUrl, getInstagramEmbedUrl } from "@/lib/utils.js";
 import InvoiceModal from "@/components/InvoiceModal.jsx";
 import {
   exportOrdersToExcel,
@@ -5121,18 +5122,18 @@ function AdminPage() {
                         </button>
                       </div>
 
-                      {/* Direct URL Box */}
+                      {/* Direct URL / Instagram Box */}
                       <div className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between space-y-3">
                         <div>
                           <div className="flex items-center justify-between mb-1">
                             <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                               <Cloud className="h-3.5 w-3.5 text-primary" />
-                              <span>Or Add Video by URL</span>
+                              <span>Or Add Video by URL / Instagram Reel</span>
                             </label>
-                            <span className="text-[10px] text-muted-foreground">Cloudinary, S3, MP4</span>
+                            <span className="text-[10px] text-muted-foreground">Instagram, Cloudinary, MP4</span>
                           </div>
                           <p className="text-[11px] text-muted-foreground">
-                            Paste a direct link to any MP4, MOV, or WebM video hosted online.
+                            Paste an <strong>Instagram Reel link</strong> (e.g. <code>https://instagram.com/reel/...</code>) or direct MP4 video URL.
                           </p>
                         </div>
 
@@ -5147,7 +5148,7 @@ function AdminPage() {
                                 handleAddVideoUrl();
                               }
                             }}
-                            placeholder="https://.../video.mp4 or https://res.cloudinary.com/..."
+                            placeholder="https://www.instagram.com/reel/... or https://.../video.mp4"
                             className="w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:bg-background transition"
                           />
                           <button
@@ -5157,7 +5158,7 @@ function AdminPage() {
                             className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-secondary hover:bg-secondary/80 px-4 py-2 text-xs font-bold text-foreground border border-border transition disabled:opacity-50 cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5 text-primary" />
-                            <span>Add Video Link</span>
+                            <span>Add Video / Instagram Link</span>
                           </button>
                         </div>
                       </div>
@@ -5184,7 +5185,7 @@ function AdminPage() {
                           </div>
                           <p className="text-xs font-bold text-foreground">No videos uploaded for this product yet</p>
                           <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
-                            Upload an MP4, MOV, or WebM video to automatically enable this product in the <strong>Watch to Shop</strong> carousel on the homepage and the floating player on the product page.
+                            Upload an MP4 video or paste an Instagram Reel URL to automatically enable this product in the <strong>Watch to Shop</strong> carousel on the homepage and the floating player on the product page.
                           </p>
                         </div>
                       ) : (
@@ -5196,8 +5197,9 @@ function AdminPage() {
                             .filter(Boolean)
                             .map((vUrl, vIdx) => {
                               const isPrimary = productForm.video === vUrl || (!productForm.video && vIdx === 0);
+                              const isInsta = isInstagramUrl(vUrl);
                               const ext = vUrl.split(".").pop().split("?")[0].toUpperCase();
-                              const formatTag = ["MP4", "MOV", "WEBM", "M4V"].includes(ext) ? ext : "VIDEO";
+                              const formatTag = isInsta ? "INSTAGRAM REEL" : (["MP4", "MOV", "WEBM", "M4V"].includes(ext) ? ext : "VIDEO");
 
                               return (
                                 <div
@@ -5210,18 +5212,26 @@ function AdminPage() {
                                 >
                                   {/* Video Player Preview */}
                                   <div className="relative aspect-[9/12] sm:aspect-[9/14] max-h-64 w-full bg-black overflow-hidden flex items-center justify-center">
-                                    <video
-                                      src={vUrl}
-                                      controls
-                                      muted
-                                      loop
-                                      playsInline
-                                      preload="metadata"
-                                      className="h-full w-full object-cover"
-                                      onError={(e) => {
-                                        console.warn("Video preview error:", vUrl);
-                                      }}
-                                    />
+                                    {isInsta ? (
+                                      <iframe
+                                        src={getInstagramEmbedUrl(vUrl)}
+                                        className="h-full w-full object-cover border-0"
+                                        title="Instagram Reel Preview"
+                                      />
+                                    ) : (
+                                      <video
+                                        src={vUrl}
+                                        controls
+                                        muted
+                                        loop
+                                        playsInline
+                                        preload="metadata"
+                                        className="h-full w-full object-cover"
+                                        onError={(e) => {
+                                          console.warn("Video preview error:", vUrl);
+                                        }}
+                                      />
+                                    )}
 
                                     {/* Format Badge */}
                                     <div className="absolute top-2 left-2 flex items-center gap-1 z-10">
@@ -5233,6 +5243,7 @@ function AdminPage() {
                                           ⭐ Main Video
                                         </span>
                                       )}
+
                                     </div>
 
                                     {/* Delete Button */}

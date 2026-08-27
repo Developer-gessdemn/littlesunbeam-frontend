@@ -15,6 +15,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useShop } from "@/context/ShopContext.jsx";
+import { isInstagramUrl, getInstagramEmbedUrl } from "@/lib/utils.js";
 
 export default function ProductFloatingVideo({ product }) {
   const { addToCart } = useShop();
@@ -48,7 +49,7 @@ export default function ProductFloatingVideo({ product }) {
   const togglePlay = () => {
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch(() => { });
       setIsPlaying(true);
     } else {
       videoRef.current.pause();
@@ -105,16 +106,24 @@ export default function ProductFloatingVideo({ product }) {
             onClick={() => setIsMinimized(false)}
             className="flex items-center gap-2 text-left cursor-pointer group"
           >
-            {/* Live Video Micro-Thumb */}
+            {/* Live Video / Instagram Micro-Thumb */}
             <div className="relative h-12 w-10 rounded-xl overflow-hidden bg-black border border-primary/30 shrink-0">
-              <video
-                src={activeVideoUrl}
-                autoPlay
-                muted
-                loop
-                playsInline
-                className="h-full w-full object-cover"
-              />
+              {isInstagramUrl(activeVideoUrl) ? (
+                <iframe
+                  src={getInstagramEmbedUrl(activeVideoUrl)}
+                  className="h-full w-full object-cover border-0 pointer-events-none"
+                  title="Product Video"
+                />
+              ) : (
+                <video
+                  src={activeVideoUrl}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="h-full w-full object-cover"
+                />
+              )}
               <div className="absolute inset-0 grid place-items-center bg-black/20">
                 <Play className="h-3 w-3 text-white fill-white" />
               </div>
@@ -198,18 +207,30 @@ export default function ProductFloatingVideo({ product }) {
           onClick={togglePlay}
           className="relative aspect-[9/13] sm:aspect-[9/14] w-full bg-black overflow-hidden group cursor-pointer"
         >
-          <video
-            ref={videoRef}
-            key={activeVideoUrl}
-            src={activeVideoUrl}
-            autoPlay
-            muted={isMuted}
-            loop
-            playsInline
-            className="h-full w-full object-cover"
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-          />
+          {isInstagramUrl(activeVideoUrl) ? (
+            <div className="absolute inset-0 overflow-hidden bg-black flex items-center justify-center pointer-events-none">
+              <iframe
+                src={getInstagramEmbedUrl(activeVideoUrl)}
+                className="w-[135%] h-[140%] -mt-[20%] -ml-[17.5%] object-cover border-0 pointer-events-none scale-105"
+                title={product?.name || "Product Video"}
+                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+              />
+            </div>
+          ) : (
+            <video
+              ref={videoRef}
+              key={activeVideoUrl}
+              src={activeVideoUrl}
+              autoPlay
+              muted={isMuted}
+              loop
+              playsInline
+              preload="metadata"
+              className="h-full w-full object-cover"
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+            />
+          )}
 
           {/* Dark Overlay on Hover for Controls */}
           <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
@@ -283,11 +304,10 @@ export default function ProductFloatingVideo({ product }) {
           <button
             type="button"
             onClick={handleAddToCart}
-            className={`flex items-center justify-center gap-1 rounded-xl px-3 py-1.5 text-xs font-black transition-all shadow-xs shrink-0 cursor-pointer active:scale-95 ${
-              isAdded
+            className={`flex items-center justify-center gap-1 rounded-xl px-3 py-1.5 text-xs font-black transition-all shadow-xs shrink-0 cursor-pointer active:scale-95 ${isAdded
                 ? "bg-emerald-500 text-white"
                 : "bg-primary text-primary-foreground hover:bg-primary/90"
-            }`}
+              }`}
           >
             {isAdded ? (
               <>
