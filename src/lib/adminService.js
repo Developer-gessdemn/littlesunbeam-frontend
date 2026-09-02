@@ -1,6 +1,6 @@
 import { products as initialProducts, categories as initialCategories } from "@/data/products";
+import { API_BASE_URL } from "@/lib/utils.js";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const TOKEN_KEY = "little_sunbeam_admin_token";
 const USER_KEY = "little_sunbeam_admin_user";
 const LOCAL_PRODUCTS_KEY = "little_sunbeam_admin_products";

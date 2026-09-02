@@ -42,6 +42,7 @@ import { generateInvoicePdf, printInvoice } from "@/lib/exportUtils.js";
 import InvoiceModal from "@/components/InvoiceModal.jsx";
 import SiteHeader from "@/components/SiteHeader.jsx";
 import SiteFooter from "@/components/SiteFooter.jsx";
+import { API_BASE_URL } from "@/lib/utils.js";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -163,11 +164,9 @@ function ProfilePage() {
 
     setLoadingOrders(true);
     const customerToken = localStorage.getItem("little_sunbeam_customer_token");
-    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-
     if (customerToken && !customerToken.startsWith("demo_jwt")) {
       // Real backend — fetch this customer's own orders
-      fetch(`${apiBase}/orders`, {
+      fetch(`${API_BASE_URL}/orders`, {
         headers: { Authorization: `Bearer ${customerToken}` },
       })
         .then((res) => (res.ok ? res.json() : null))

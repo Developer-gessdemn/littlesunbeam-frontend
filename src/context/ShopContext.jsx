@@ -1,9 +1,10 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 import { products as initialProducts, categories as initialCategories } from "@/data/products";
+import heroBabyImg from "@/assets/hero-baby.jpg";
+import { API_BASE_URL } from "@/lib/utils.js";
 
 const ShopContext = createContext(null);
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const CUSTOMER_TOKEN_KEY = "little_sunbeam_customer_token";
 const CUSTOMER_USER_KEY = "little_sunbeam_customer_user";
 
@@ -299,7 +300,7 @@ export function ShopProvider({ children }) {
       primaryBtnTo: "/shop",
       secondaryBtnLabel: "Newborn Hospital Kits",
       secondaryBtnTo: "/shop",
-      image: "/src/assets/hero-baby.jpg",
+      image: heroBabyImg,
       imageAlt: "Smiling baby in soft yellow organic cotton clothing",
       bgColor: "",
     },
@@ -312,7 +313,7 @@ export function ShopProvider({ children }) {
       primaryBtnTo: "/shop",
       secondaryBtnLabel: "View All",
       secondaryBtnTo: "/shop",
-      image: "/src/assets/hero-baby.jpg",
+      image: heroBabyImg,
       imageAlt: "Baby wrapped in soft muslin swaddle",
       bgColor: "oklch(0.97 0.02 95)",
     },
@@ -325,7 +326,7 @@ export function ShopProvider({ children }) {
       primaryBtnTo: "/shop",
       secondaryBtnLabel: "Learn More",
       secondaryBtnTo: "/shop",
-      image: "/src/assets/hero-baby.jpg",
+      image: heroBabyImg,
       imageAlt: "Newborn hospital kit essentials",
       bgColor: "oklch(0.97 0.025 160)",
     },
@@ -333,7 +334,18 @@ export function ShopProvider({ children }) {
   const [heroBanners, setHeroBannersState] = useState(() => {
     try {
       const stored = localStorage.getItem(HERO_BANNERS_KEY);
-      return stored ? JSON.parse(stored) : DEFAULT_HERO_BANNERS;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((banner) => {
+            if (banner.image === "/src/assets/hero-baby.jpg" || !banner.image) {
+              return { ...banner, image: heroBabyImg };
+            }
+            return banner;
+          });
+        }
+      }
+      return DEFAULT_HERO_BANNERS;
     } catch {
       return DEFAULT_HERO_BANNERS;
     }

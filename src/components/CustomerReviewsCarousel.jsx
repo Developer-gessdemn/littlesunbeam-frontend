@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "@tanstack/react-router";
 import { Star, Check, Heart, MessageSquareQuote, Sparkles } from "lucide-react";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import { API_BASE_URL } from "@/lib/utils.js";
 
 export default function CustomerReviewsCarousel() {
   const [reviews, setReviews] = useState([]);

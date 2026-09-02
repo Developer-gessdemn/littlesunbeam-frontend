@@ -31,8 +31,7 @@ import SiteFooter from "@/components/SiteFooter.jsx";
 import ProductCard from "@/components/ProductCard.jsx";
 import ProductFloatingVideo from "@/components/ProductFloatingVideo.jsx";
 import { useShop, normalizeProduct } from "@/context/ShopContext.jsx";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import { API_BASE_URL } from "@/lib/utils.js";
 
 export const Route = createFileRoute("/product/$productId")({
   component: ProductDetailsPage,
