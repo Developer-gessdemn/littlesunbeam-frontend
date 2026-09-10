@@ -374,6 +374,12 @@ export const adminService = {
   },
 
   async getRazorpayKey() {
+    // Prefer the env var key (set at build time) — especially when it's a live key.
+    // Only fall back to backend if no env var is set.
+    const envKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+    if (envKey && envKey.startsWith("rzp_live_")) {
+      return envKey;
+    }
     try {
       const res = await fetch(`${API_BASE_URL}/orders/razorpay-key`);
       const data = await res.json();
@@ -383,7 +389,7 @@ export const adminService = {
     } catch (err) {
       console.warn("[getRazorpayKey] Could not fetch key from backend:", err.message);
     }
-    return import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_TaDwCOE6e7ioNi";
+    return envKey || "rzp_live_TaDwCOE6e7ioNi";
   },
 
   async createRazorpayOrder({ amount, currency = "INR" }) {

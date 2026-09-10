@@ -376,15 +376,21 @@ function CheckoutPage() {
         throw new Error("Unable to load Razorpay payment gateway. Please check your internet connection.");
       }
 
-      // 1. Create Razorpay order on backend
+      // 1. Create Razorpay order on backend (only if backend keys match frontend keys)
       let rzpOrderData = null;
-      try {
-        rzpOrderData = await adminService.createRazorpayOrder({ amount: total });
-      } catch (orderErr) {
-        console.warn("[Razorpay Order] Backend order creation failed, falling back to direct checkout:", orderErr.message);
+      const envKey = import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_TaDwCOE6e7ioNi";
+      const usingLiveKey = envKey.startsWith("rzp_live_");
+
+      if (!usingLiveKey) {
+        // Only call backend order creation in test/dev mode — avoids key mismatch
+        try {
+          rzpOrderData = await adminService.createRazorpayOrder({ amount: total });
+        } catch (orderErr) {
+          console.warn("[Razorpay Order] Backend order creation failed, falling back to direct checkout:", orderErr.message);
+        }
       }
 
-      const keyId = rzpOrderData?.keyId || (await adminService.getRazorpayKey());
+      const keyId = envKey;
 
       // 2. Configure Razorpay modal
       const logoUrl = typeof window !== "undefined"
@@ -400,7 +406,8 @@ function CheckoutPage() {
         name: "Little Sunbeam",
         description: `Baby Clothing & Essentials (${cart.length} items)`,
         image: LSB_LOGO_BASE64 || logoUrl,
-        order_id: rzpOrderData?.orderId || undefined,
+        // Only pass order_id if we have a valid backend order (keys match)
+        ...(rzpOrderData?.orderId ? { order_id: rzpOrderData.orderId } : {}),
         prefill: {
           name: shippingForm.name || customer?.name || "",
           email: shippingForm.email || customer?.email || "",
