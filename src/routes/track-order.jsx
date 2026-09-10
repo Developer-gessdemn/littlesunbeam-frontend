@@ -674,7 +674,7 @@ function TrackOrderPage() {
 
                     <div className="space-y-2">
                       <a
-                        href="https://wa.me/919361503943?text=Hi%20Little%20Sunbeam,%20I%20need%20help%20tracking%20my%20order"
+                        href="https://wa.me/919025559837?text=Hi%20Little%20Sunbeam,%20I%20need%20help%20tracking%20my%20order"
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition"
@@ -684,11 +684,11 @@ function TrackOrderPage() {
                       </a>
 
                       <a
-                        href="tel:+919361503943"
+                        href="tel:+919025559837"
                         className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-3 rounded-xl border border-border hover:bg-muted font-bold text-xs text-foreground transition"
                       >
                         <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>Call +91 93615 03943</span>
+                        <span>Call +91 90255 59837</span>
                       </a>
                     </div>
                   </div>

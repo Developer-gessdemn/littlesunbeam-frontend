@@ -6,7 +6,7 @@ import { useShop } from "@/context/ShopContext.jsx";
 export default function SiteFooter() {
   const { footerInfo, categories } = useShop();
 
-  const phone = footerInfo?.phone || "+91 93615 03943";
+  const phone = footerInfo?.phone || "+91 90255 59837";
   const email = footerInfo?.email || "littlesunbeamkidswear@gmail.com";
   const address =
     footerInfo?.address ||
@@ -22,7 +22,7 @@ export default function SiteFooter() {
       {/* Social Strip */}
       <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-center gap-6 text-xs font-bold text-muted-foreground border-b border-border">
         <a
-          href="https://facebook.com"
+          href="https://www.instagram.com/little_sunbeam_kidswear"
           target="_blank"
           rel="noreferrer"
           className="hover:text-primary transition-colors flex items-center gap-1.5"
@@ -32,7 +32,7 @@ export default function SiteFooter() {
         </a>
         <span>·</span>
         <a
-          href="https://instagram.com"
+          href="https://www.instagram.com/little_sunbeam_kidswear"
           target="_blank"
           rel="noreferrer"
           className="hover:text-primary transition-colors flex items-center gap-1.5"

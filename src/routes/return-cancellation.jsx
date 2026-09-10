@@ -20,7 +20,7 @@ export const Route = createFileRoute("/return-cancellation")({
 function ReturnCancellationPage() {
   const { footerInfo } = useShop();
   const email = footerInfo?.email || "littlesunbeamkidswear@gmail.com";
-  const phone = footerInfo?.phone || "+91 93615 03943";
+  const phone = footerInfo?.phone || "+91 90255 59837";
 
   return (
     <div className="min-h-screen flex flex-col bg-cream text-foreground font-sans">
@@ -106,7 +106,7 @@ function ReturnCancellationPage() {
             </p>
             <div className="p-4 rounded-2xl bg-secondary/60 border border-border text-foreground space-y-1.5 text-xs sm:text-sm">
               <p>Email: <a href={`mailto:${email}`} className="text-primary hover:underline">{email}</a></p>
-              <p>WhatsApp / Call: <a href="https://wa.me/919361503943" target="_blank" rel="noreferrer" className="text-green-600 font-bold hover:underline">+91 93615 03943 (Chat on WhatsApp →)</a></p>
+              <p>WhatsApp / Call: <a href="https://wa.me/919025559837" target="_blank" rel="noreferrer" className="text-green-600 font-bold hover:underline">+91 90255 59837 (Chat on WhatsApp →)</a></p>
               <p className="text-muted-foreground pt-1">Please mention your Order Number and photos if relevant.</p>
             </div>
           </section>

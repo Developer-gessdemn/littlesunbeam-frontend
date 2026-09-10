@@ -11,7 +11,7 @@ export const Route = createFileRoute("/contact")({
       { title: "Contact Us | Little Sunbeam Baby Shop" },
       {
         name: "description",
-        content: "Get in touch with Little Sunbeam via WhatsApp or Call at +91 93615 03943. We are here to assist you with orders, organic cotton baby clothing, and support.",
+        content: "Get in touch with Little Sunbeam via WhatsApp or Call at +91 90255 59837. We are here to assist you with orders, organic cotton baby clothing, and support.",
       },
     ],
   }),
@@ -20,13 +20,13 @@ export const Route = createFileRoute("/contact")({
 
 function ContactPage() {
   const { footerInfo } = useShop();
-  const phone = footerInfo?.phone || "+91 93615 03943";
+  const phone = footerInfo?.phone || "+91 90255 59837";
   const email = footerInfo?.email || "littlesunbeamkidswear@gmail.com";
   const address =
     footerInfo?.address ||
     "1/95m Bandari Nagar, Veerapandi, Tirupur, Tamil Nadu - 641605";
 
-  const whatsappDigits = "919361503943";
+  const whatsappDigits = "919025559837";
   const cleanPhone = phone.replace(/[^0-9+]/g, "");
 
   const [submitted, setSubmitted] = useState(false);
@@ -101,7 +101,7 @@ function ContactPage() {
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                   <span>WhatsApp Chat &amp; Call</span>
                 </h3>
-                <p className="text-sm font-bold text-foreground mt-0.5">+91 93615 03943</p>
+                <p className="text-sm font-bold text-foreground mt-0.5">+91 90255 59837</p>
                 <p className="text-xs text-green-600 font-semibold mt-1">Tap to chat on WhatsApp →</p>
               </div>
             </a>
@@ -141,7 +141,7 @@ function ContactPage() {
                 </div>
                 <h3 className="text-xl font-bold text-foreground">Message Sent to WhatsApp!</h3>
                 <p className="text-sm text-muted-foreground mt-2 max-w-md">
-                  Your message has been formatted and opened in WhatsApp chat (+91 93615 03943). Our team will respond to you right away!
+                  Your message has been formatted and opened in WhatsApp chat (+91 90255 59837). Our team will respond to you right away!
                 </p>
                 <div className="flex flex-wrap gap-3 justify-center mt-6">
                   <a
@@ -173,7 +173,7 @@ function ContactPage() {
                   </h2>
                   <span className="text-xs font-bold text-green-600 bg-green-500/10 px-2.5 py-1 rounded-full flex items-center gap-1">
                     <MessageCircle className="h-3.5 w-3.5" />
-                    Direct WhatsApp to +91 93615 03943
+                    Direct WhatsApp to +91 90255 59837
                   </span>
                 </div>
 
@@ -230,7 +230,7 @@ function ContactPage() {
                   className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-full bg-green-600 px-8 py-3 text-xs sm:text-sm font-extrabold text-white hover:bg-green-700 transition shadow-xs cursor-pointer"
                 >
                   <MessageCircle className="h-4 w-4" />
-                  <span>Send via WhatsApp (+91 93615 03943)</span>
+                  <span>Send via WhatsApp (+91 90255 59837)</span>
                 </button>
               </form>
             )}

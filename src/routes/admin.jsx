@@ -132,14 +132,14 @@ function AdminPage() {
   // Footer editor state
   const [editingFooter, setEditingFooter] = useState({
     email: footerInfo?.email || "littlesunbeamkidswear@gmail.com",
-    phone: footerInfo?.phone || "+91 93615 03943",
+    phone: footerInfo?.phone || "+91 90255 59837",
     address: footerInfo?.address || "1/95m Bandari Nagar, Veerapandi, Tirupur, Tamil Nadu - 641605",
   });
   useEffect(() => {
     if (footerInfo) {
       setEditingFooter({
         email: footerInfo.email || "littlesunbeamkidswear@gmail.com",
-        phone: footerInfo.phone || "+91 93615 03943",
+        phone: footerInfo.phone || "+91 90255 59837",
         address: footerInfo.address || "1/95m Bandari Nagar, Veerapandi, Tirupur, Tamil Nadu - 641605",
       });
     }
@@ -4040,7 +4040,7 @@ function AdminPage() {
                         type="text"
                         value={editingFooter.phone}
                         onChange={(e) => setEditingFooter({ ...editingFooter, phone: e.target.value })}
-                        placeholder="+91 93615 03943"
+                        placeholder="+91 90255 59837"
                         className="w-full rounded-xl border border-border bg-muted/40 p-2.5 text-xs font-medium outline-none focus:border-primary"
                       />
                     </div>
@@ -4076,7 +4076,7 @@ function AdminPage() {
                       onClick={() => {
                         const defaultFooter = {
                           email: "littlesunbeamkidswear@gmail.com",
-                          phone: "+91 93615 03943",
+                          phone: "+91 90255 59837",
                           address: "1/95m Bandari Nagar, Veerapandi, Tirupur, Tamil Nadu - 641605",
                         };
                         setEditingFooter(defaultFooter);

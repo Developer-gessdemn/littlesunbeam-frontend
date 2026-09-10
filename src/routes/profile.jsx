@@ -499,7 +499,7 @@ function ProfilePage() {
                   <p className="text-xs text-muted-foreground">
                     Need instant help? Reach out on{" "}
                     <a
-                      href="https://wa.me/919361503943?text=Hi%20Little%20Sunbeam,%20I%20need%20assistance%20with%20my%20account"
+                      href="https://wa.me/919025559837?text=Hi%20Little%20Sunbeam,%20I%20need%20assistance%20with%20my%20account"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="font-bold text-primary hover:underline inline-flex items-center gap-1"
@@ -1515,7 +1515,7 @@ function ProfilePage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                         <a
-                          href="https://wa.me/919361503943?text=Hi%20Little%20Sunbeam,%20I%20have%20a%20question%20about%20my%20order"
+                          href="https://wa.me/919025559837?text=Hi%20Little%20Sunbeam,%20I%20have%20a%20question%20about%20my%20order"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-3 p-3 rounded-2xl bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20 font-bold text-xs hover:bg-emerald-500/20 transition"
@@ -1523,7 +1523,7 @@ function ProfilePage() {
                           <MessageCircle className="h-5 w-5 text-emerald-600" />
                           <div>
                             <p>Chat on WhatsApp</p>
-                            <span className="text-[10px] font-normal text-muted-foreground">+91 93615 03943</span>
+                            <span className="text-[10px] font-normal text-muted-foreground">+91 90255 59837</span>
                           </div>
                         </a>
 

@@ -278,7 +278,7 @@ function InnerShopProvider({ children }) {
   const FOOTER_KEY = "little_sunbeam_footer_info";
   const DEFAULT_FOOTER = {
     email: "littlesunbeamkidswear@gmail.com",
-    phone: "+91 93615 03943",
+    phone: "+91 90255 59837",
     address: "1/95m Bandari Nagar, Veerapandi, Tirupur, Tamil Nadu - 641605",
   };
   const [footerInfo, setFooterInfoState] = useState(() => {

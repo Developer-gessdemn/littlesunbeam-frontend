@@ -20,7 +20,7 @@ export const Route = createFileRoute("/privacy-policy")({
 function PrivacyPolicyPage() {
   const { footerInfo } = useShop();
   const email = footerInfo?.email || "littlesunbeamkidswear@gmail.com";
-  const phone = footerInfo?.phone || "+91 93615 03943";
+  const phone = footerInfo?.phone || "+91 90255 59837";
 
   return (
     <div className="min-h-screen flex flex-col bg-cream text-foreground font-sans">

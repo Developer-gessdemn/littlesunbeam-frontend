@@ -7,7 +7,7 @@ const DEFAULT_STORE_INFO = {
   name: "Little Sunbeam Baby Clothing",
   tagline: "Premium Organic Essentials for Newborns & Toddlers",
   email: "littlesunbeamkidswear@gmail.com",
-  phone: "+91 93615 03943",
+  phone: "+91 90255 59837",
   address: "1/95m Bandari Nagar, Veerapandi, Tirupur, Tamil Nadu - 641605",
   website: "www.littlesunbeam.com",
   gstin: "33AAAAA0000A1Z5",
