@@ -383,7 +383,7 @@ export const adminService = {
     } catch (err) {
       console.warn("[getRazorpayKey] Could not fetch key from backend:", err.message);
     }
-    return import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_TTYFrGlH8NWdDV";
+    return import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_TaDwCOE6e7ioNi";
   },
 
   async createRazorpayOrder({ amount, currency = "INR" }) {
