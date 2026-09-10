@@ -51,6 +51,7 @@ function ProductDetailsPage() {
     isCustomerLoggedIn,
     requireLogin,
     refreshProducts,
+    standardSizeChartEnabled,
   } = useShop();
 
   const [liveProduct, setLiveProduct] = useState(null);
@@ -76,6 +77,27 @@ function ProductDetailsPage() {
   }, [productId, productFromList]);
 
   const product = liveProduct || productFromList || (products && products.find((p) => String(p._id || p.id) === String(productId)));
+
+  // Size Chart & Size Guide visibility logic
+  // Relies entirely on ShopContext's standardSizeChartEnabled which:
+  //   - initializes from localStorage on mount
+  //   - fetches the authoritative value from the API on mount
+  //   - stays reactive via custom events and BroadcastChannel
+  // Using a separate local override caused stale-state bugs when the API
+  // returned a different value than what was cached in localStorage.
+  const isGlobalSizeChartAllowed = typeof standardSizeChartEnabled === "boolean"
+    ? standardSizeChartEnabled
+    : true;
+
+  const hasCustomSizeChart = Boolean(product?.sizeChartImage && String(product.sizeChartImage).trim());
+  const isStandardChartAllowed = isGlobalSizeChartAllowed === true && (product?.showStandardSizeChart !== false);
+  const showSizeGuideButton = hasCustomSizeChart || isStandardChartAllowed;
+
+  useEffect(() => {
+    if (!showSizeGuideButton && sizeGuideOpen) {
+      setSizeGuideOpen(false);
+    }
+  }, [showSizeGuideButton, sizeGuideOpen]);
 
   // Color Variants & Colors from backend
   const colorVariants = useMemo(() => {
@@ -881,14 +903,16 @@ function ProductDetailsPage() {
                     Size: <span className="font-bold text-neutral-700">{selectedSize}</span>
                   </span>
 
-                  <button
-                    type="button"
-                    onClick={() => setSizeGuideOpen(true)}
-                    className="flex items-center gap-1.5 font-bold transition cursor-pointer text-primary hover:underline underline-offset-4"
-                  >
-                    <Ruler className="h-3.5 w-3.5 text-primary" />
-                    <span>{product?.sizeChartImage ? "Size Chart" : "Size Guide"}</span>
-                  </button>
+                  {showSizeGuideButton && (
+                    <button
+                      type="button"
+                      onClick={() => setSizeGuideOpen(true)}
+                      className="flex items-center gap-1.5 font-bold transition cursor-pointer text-primary hover:underline underline-offset-4"
+                    >
+                      <Ruler className="h-3.5 w-3.5 text-primary" />
+                      <span>{hasCustomSizeChart ? "Size Chart" : "Size Guide"}</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-2 sm:gap-2.5">
@@ -1603,7 +1627,7 @@ function ProductDetailsPage() {
       )}
 
       {/* ─── SIZE GUIDE & SIZE CHART MODAL ──────────────────────────────── */}
-      {sizeGuideOpen && (
+      {sizeGuideOpen && showSizeGuideButton && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-200"
           onClick={() => setSizeGuideOpen(false)}
@@ -1693,13 +1717,10 @@ function ProductDetailsPage() {
                         </thead>
                         <tbody className="divide-y divide-neutral-100 bg-white">
                           {[
-                            { size: "Newborn", height: "45 – 52 cm", chest: "35 – 38 cm", weight: "2.5 – 3.8 kg" },
                             { size: "0 - 3 Months", height: "52 – 62 cm", chest: "38 – 42 cm", weight: "3.8 – 5.8 kg" },
                             { size: "3 - 6 Months", height: "62 – 68 cm", chest: "42 – 45 cm", weight: "5.8 – 7.8 kg" },
                             { size: "6 - 12 Months", height: "68 – 76 cm", chest: "45 – 48 cm", weight: "7.8 – 10.2 kg" },
-                            { size: "1 - 2 Years", height: "76 – 86 cm", chest: "48 – 51 cm", weight: "10.2 – 12.8 kg" },
-                            { size: "2 - 3 Years", height: "86 – 94 cm", chest: "51 – 54 cm", weight: "12.8 – 15.0 kg" },
-                            { size: "3 - 4 Years", height: "94 – 102 cm", chest: "54 – 57 cm", weight: "15.0 – 17.5 kg" },
+                            { size: "1 - 4 Years", height: "76 – 102 cm", chest: "48 – 57 cm", weight: "10.2 – 17.5 kg" },
                           ].map((row, rIdx) => {
                             const isSelectedRow = (selectedSize || "").toLowerCase() === row.size.toLowerCase();
                             return (

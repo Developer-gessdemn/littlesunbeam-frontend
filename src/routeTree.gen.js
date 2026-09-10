@@ -18,6 +18,7 @@ import { Route as ReturnCancellationRouteImport } from './routes/return-cancella
 import { Route as ShippingPolicyRouteImport } from './routes/shipping-policy';
 import { Route as SitemapRouteImport } from './routes/sitemap';
 import { Route as TermsConditionsRouteImport } from './routes/terms-conditions';
+import { Route as TrackOrderRouteImport } from './routes/track-order';
 
 const IndexRoute = IndexRouteImport.update({
     id: '/',
@@ -84,6 +85,11 @@ const TermsConditionsRoute = TermsConditionsRouteImport.update({
     path: '/terms-conditions',
     getParentRoute: () => rootRouteImport,
 });
+const TrackOrderRoute = TrackOrderRouteImport.update({
+    id: '/track-order',
+    path: '/track-order',
+    getParentRoute: () => rootRouteImport,
+});
 
 const rootRouteChildren = {
     IndexRoute: IndexRoute,
@@ -99,6 +105,7 @@ const rootRouteChildren = {
     ShippingPolicyRoute: ShippingPolicyRoute,
     SitemapRoute: SitemapRoute,
     TermsConditionsRoute: TermsConditionsRoute,
+    TrackOrderRoute: TrackOrderRoute,
 };
 
 export const routeTree = rootRouteImport

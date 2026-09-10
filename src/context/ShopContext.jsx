@@ -109,7 +109,12 @@ export const normalizeProduct = (p) => {
 
   const extractedSizes = normalizedColorVariants.length > 0
     ? Array.from(new Set(normalizedColorVariants.flatMap((cv) => (cv.sizes?.length ? cv.sizes : cv.inventory.map((inv) => inv.size)))))
-    : (p.sizes && p.sizes.length > 0 ? p.sizes : ["0-3M", "3-6M", "6-12M"]);
+    : (p.sizes && p.sizes.length > 0 ? p.sizes : ["0 - 3 Months", "3 - 6 Months", "6 - 12 Months", "1 - 4 Years"]);
+
+  const rawAge = p.ageGroup || p.age || "0 - 3 Months";
+  const normalizedAge = ["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "2 - 4 Years"].includes(rawAge)
+    ? "1 - 4 Years"
+    : rawAge;
 
   return {
     ...p,
@@ -126,8 +131,8 @@ export const normalizeProduct = (p) => {
     categoryPill: p.categoryPill || p.category || "",
     subCategory: p.subCategory || "",
     brand: p.brand || "Little Sunbeam",
-    age: p.age || p.ageGroup || "0 - 3 Months",
-    ageGroup: p.ageGroup || p.age || "0 - 3 Months",
+    age: normalizedAge,
+    ageGroup: normalizedAge,
     gender: p.gender || "Unisex",
     fabric: p.fabric || "",
     pattern: p.pattern || "",
@@ -141,6 +146,7 @@ export const normalizeProduct = (p) => {
     gallery: activeGallery,
     images: p.images || { main: activeMainImg, front: "", back: "", side: "", model: "", additional: [] },
     sizeChartImage: p.sizeChartImage || "",
+    showStandardSizeChart: p.showStandardSizeChart !== false,
     video: p.video || (Array.isArray(p.videos) && p.videos[0]) || "",
     videos: Array.isArray(p.videos) && p.videos.length > 0
       ? p.videos.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean)
@@ -251,7 +257,7 @@ const getInitialProducts = () => {
   return [];
 };
 
-export function ShopProvider({ children }) {
+function InnerShopProvider({ children }) {
   // ─── Products state (Live Backend + Local Storage Fallback) ────────────────
   const [products, setProducts] = useState(getInitialProducts);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -557,9 +563,10 @@ export function ShopProvider({ children }) {
     } catch { }
   };
 
-  // ─── Site Settings (COD enabled, etc.) ────────────────────────────────────
+  // ─── Site Settings (COD enabled, Standard Size Chart enabled, etc.) ───────
   const SETTINGS_KEY = "little_sunbeam_settings";
   const COD_KEY = "little_sunbeam_cod_enabled";
+  const SIZE_CHART_KEY = "little_sunbeam_size_chart_enabled";
 
   const getInitialCodStatus = () => {
     try {
@@ -574,8 +581,26 @@ export function ShopProvider({ children }) {
     return true;
   };
 
+  const getInitialSizeChartStatus = () => {
+    try {
+      const explicit = localStorage.getItem(SIZE_CHART_KEY);
+      if (explicit === "false") return false;
+      if (explicit === "true") return true;
+      const stored = localStorage.getItem(SETTINGS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && parsed.standardSizeChartEnabled === false) return false;
+        if (parsed && parsed.standardSizeChartEnabled === true) return true;
+      }
+    } catch { }
+    return true;
+  };
+
   const [siteSettings, setSiteSettingsState] = useState(() => {
-    return { codEnabled: getInitialCodStatus() };
+    return {
+      codEnabled: getInitialCodStatus(),
+      standardSizeChartEnabled: getInitialSizeChartStatus(),
+    };
   });
 
   const fetchLiveSettings = useCallback(async () => {
@@ -583,33 +608,49 @@ export function ShopProvider({ children }) {
       const res = await fetch(`${API_BASE_URL}/settings`);
       if (!res.ok) throw new Error("Failed to fetch settings");
       const data = await res.json();
-      if (data?.data && typeof data.data.codEnabled === "boolean") {
-        setSiteSettingsState(data.data);
+      if (data?.data) {
+        const localCod = getInitialCodStatus();
+        const localSizeChart = getInitialSizeChartStatus();
+        const nextSettings = {
+          codEnabled: typeof data.data.codEnabled === "boolean" ? data.data.codEnabled : localCod,
+          standardSizeChartEnabled: typeof data.data.standardSizeChartEnabled === "boolean" ? data.data.standardSizeChartEnabled : localSizeChart,
+        };
+        setSiteSettingsState(nextSettings);
         try {
-          localStorage.setItem(SETTINGS_KEY, JSON.stringify(data.data));
-          localStorage.setItem(COD_KEY, String(data.data.codEnabled));
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(nextSettings));
+          localStorage.setItem(COD_KEY, String(nextSettings.codEnabled));
+          localStorage.setItem(SIZE_CHART_KEY, String(nextSettings.standardSizeChartEnabled));
+          window.dispatchEvent(new CustomEvent("settings_updated", { detail: nextSettings }));
+          window.dispatchEvent(new CustomEvent("size_chart_updated", { detail: nextSettings.standardSizeChartEnabled }));
+          window.dispatchEvent(new CustomEvent("cod_updated", { detail: nextSettings.codEnabled }));
         } catch { }
         return;
       }
     } catch {
       // Offline fallback: load from local storage
       try {
-        const isEnabled = getInitialCodStatus();
-        setSiteSettingsState({ codEnabled: isEnabled });
+        const isCodEnabled = getInitialCodStatus();
+        const isSizeChartEnabled = getInitialSizeChartStatus();
+        setSiteSettingsState({
+          codEnabled: isCodEnabled,
+          standardSizeChartEnabled: isSizeChartEnabled,
+        });
       } catch { }
     }
   }, []);
 
   const setCodEnabled = (enabled) => {
     const isEnabled = Boolean(enabled);
-    const nextSettings = { codEnabled: isEnabled };
-    setSiteSettingsState(nextSettings);
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(nextSettings));
-      localStorage.setItem(COD_KEY, String(isEnabled));
-      window.dispatchEvent(new CustomEvent("settings_updated", { detail: nextSettings }));
-      window.dispatchEvent(new CustomEvent("cod_updated", { detail: isEnabled }));
-    } catch { }
+    setSiteSettingsState((prev) => {
+      const nextSettings = { ...prev, codEnabled: isEnabled };
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(nextSettings));
+        localStorage.setItem(COD_KEY, String(isEnabled));
+        window.dispatchEvent(new CustomEvent("settings_updated", { detail: nextSettings }));
+        window.dispatchEvent(new CustomEvent("cod_updated", { detail: isEnabled }));
+      } catch { }
+      return nextSettings;
+    });
 
     try {
       if (typeof window !== "undefined" && "BroadcastChannel" in window) {
@@ -628,6 +669,40 @@ export function ShopProvider({ children }) {
           Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify({ codEnabled: isEnabled }),
+      }).catch(() => { });
+    }
+  };
+
+  const setStandardSizeChartEnabled = (enabled) => {
+    const isEnabled = Boolean(enabled);
+    setSiteSettingsState((prev) => {
+      const nextSettings = { ...prev, standardSizeChartEnabled: isEnabled };
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(nextSettings));
+        localStorage.setItem(SIZE_CHART_KEY, String(isEnabled));
+        window.dispatchEvent(new CustomEvent("settings_updated", { detail: nextSettings }));
+        window.dispatchEvent(new CustomEvent("size_chart_updated", { detail: isEnabled }));
+      } catch { }
+      return nextSettings;
+    });
+
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("little_sunbeam_broadcast_channel");
+        bc.postMessage({ type: "SIZE_CHART_UPDATED", standardSizeChartEnabled: isEnabled });
+        bc.close();
+      }
+    } catch { }
+
+    const adminToken = localStorage.getItem("little_sunbeam_admin_token") || localStorage.getItem("adminToken");
+    if (adminToken) {
+      fetch(`${API_BASE_URL}/settings`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ standardSizeChartEnabled: isEnabled }),
       }).catch(() => { });
     }
   };
@@ -723,15 +798,54 @@ export function ShopProvider({ children }) {
       }
     };
 
+    const handleSizeChartUpdated = (e) => {
+      if (typeof e?.detail === "boolean") {
+        setSiteSettingsState((prev) => ({ ...prev, standardSizeChartEnabled: e.detail }));
+      }
+    };
+
+    const handleCodUpdated = (e) => {
+      if (typeof e?.detail === "boolean") {
+        setSiteSettingsState((prev) => ({ ...prev, codEnabled: e.detail }));
+      }
+    };
+
+    let bc;
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        bc = new BroadcastChannel("little_sunbeam_broadcast_channel");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "SIZE_CHART_UPDATED" && typeof event.data.standardSizeChartEnabled === "boolean") {
+            setSiteSettingsState((prev) => ({ ...prev, standardSizeChartEnabled: event.data.standardSizeChartEnabled }));
+          }
+          if (event.data?.type === "COD_UPDATED" && typeof event.data.codEnabled === "boolean") {
+            setSiteSettingsState((prev) => ({ ...prev, codEnabled: event.data.codEnabled }));
+          }
+        };
+      }
+    } catch { }
+
     window.addEventListener("products_updated", handleProductsUpdated);
     window.addEventListener("prints_updated", handlePrintsUpdated);
     window.addEventListener("categories_updated", handleCategoriesUpdated);
     window.addEventListener("hero_banners_updated", handleHeroBannersUpdated);
     window.addEventListener("settings_updated", handleSettingsUpdated);
+    window.addEventListener("size_chart_updated", handleSizeChartUpdated);
+    window.addEventListener("cod_updated", handleCodUpdated);
     window.addEventListener("storage", (e) => {
       if (e.key === SETTINGS_KEY && e.newValue) {
         try {
           setSiteSettingsState(JSON.parse(e.newValue));
+        } catch { }
+      }
+      if (e.key === SIZE_CHART_KEY && e.newValue !== null) {
+        try {
+          setSiteSettingsState((prev) => ({ ...prev, standardSizeChartEnabled: e.newValue === "true" }));
+        } catch { }
+      }
+      if (e.key === COD_KEY && e.newValue !== null) {
+        try {
+          setSiteSettingsState((prev) => ({ ...prev, codEnabled: e.newValue === "true" }));
         } catch { }
       }
       if (e.key === HERO_BANNERS_KEY && e.newValue) {
@@ -763,7 +877,12 @@ export function ShopProvider({ children }) {
       window.removeEventListener("categories_updated", handleCategoriesUpdated);
       window.removeEventListener("hero_banners_updated", handleHeroBannersUpdated);
       window.removeEventListener("settings_updated", handleSettingsUpdated);
+      window.removeEventListener("size_chart_updated", handleSizeChartUpdated);
+      window.removeEventListener("cod_updated", handleCodUpdated);
       window.removeEventListener("storage", handleProductsUpdated);
+      try {
+        if (bc) bc.close();
+      } catch { }
     };
   }, [fetchLiveProducts, fetchLivePrints, fetchLiveCategories, fetchLiveHeroBanners, fetchLiveSettings]);
 
@@ -1400,10 +1519,12 @@ export function ShopProvider({ children }) {
         categories,
         setCategories,
         refreshCategories: fetchLiveCategories,
-        // Site Settings (COD toggle, etc.)
+        // Site Settings (COD toggle, Standard Size Chart toggle, etc.)
         siteSettings,
-        codEnabled: siteSettings.codEnabled !== false,
+        codEnabled: typeof siteSettings.codEnabled === "boolean" ? siteSettings.codEnabled : getInitialCodStatus(),
         setCodEnabled,
+        standardSizeChartEnabled: typeof siteSettings.standardSizeChartEnabled === "boolean" ? siteSettings.standardSizeChartEnabled : getInitialSizeChartStatus(),
+        setStandardSizeChartEnabled,
         refreshSettings: fetchLiveSettings,
       }}
     >
@@ -1412,8 +1533,70 @@ export function ShopProvider({ children }) {
   );
 }
 
+export function ShopProvider({ children }) {
+  const existing = useContext(ShopContext);
+  if (existing) {
+    return <>{children}</>;
+  }
+  return <InnerShopProvider>{children}</InnerShopProvider>;
+}
+
+const fallbackShopContext = {
+  products: [],
+  loadingProducts: false,
+  isLiveBackend: false,
+  cart: [],
+  cartCount: 0,
+  cartSubtotal: 0,
+  addToCart: () => {},
+  removeFromCart: () => {},
+  updateCartQty: () => {},
+  clearCart: () => {},
+  wishlist: [],
+  wishlistCount: 0,
+  toggleWishlist: () => {},
+  isWishlisted: () => false,
+  removeFromWishlist: () => {},
+  cartOpen: false,
+  setCartOpen: () => {},
+  wishlistOpen: false,
+  setWishlistOpen: () => {},
+  authOpen: false,
+  setAuthOpen: () => {},
+  bannerText: "",
+  setBannerText: () => {},
+  footerInfo: {},
+  setFooterInfo: () => {},
+  heroBanners: [],
+  setHeroBanners: () => {},
+  prints: [],
+  setPrints: () => {},
+  refreshPrints: () => {},
+  isShopByPrintEnabled: true,
+  setIsShopByPrintEnabled: () => {},
+  setShopByPrintEnabled: () => {},
+  categories: [],
+  setCategories: () => {},
+  refreshCategories: () => {},
+  siteSettings: { codEnabled: true, standardSizeChartEnabled: true },
+  codEnabled: true,
+  setCodEnabled: () => {},
+  standardSizeChartEnabled: true,
+  setStandardSizeChartEnabled: () => {},
+  refreshSettings: () => {},
+  customer: null,
+  customerToken: null,
+  isCustomerLoggedIn: false,
+  requireLogin: () => {},
+  refreshProducts: () => {},
+};
+
 export function useShop() {
   const ctx = useContext(ShopContext);
-  if (!ctx) throw new Error("useShop must be used inside <ShopProvider>");
+  if (!ctx) {
+    console.warn("[ShopContext] useShop called outside <ShopProvider>. Supplying fallback context.");
+    return fallbackShopContext;
+  }
   return ctx;
 }
+

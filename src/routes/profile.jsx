@@ -366,22 +366,34 @@ function ProfilePage() {
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Delivered
           </span>
         );
+      case "Out for Delivery":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-400 font-extrabold text-xs">
+            <Truck className="h-3.5 w-3.5 text-purple-600 animate-bounce" /> Out for Delivery
+          </span>
+        );
       case "Shipped":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-400 font-extrabold text-xs">
-            <Truck className="h-3.5 w-3.5 text-blue-600 animate-pulse" /> Shipped & In Transit
+            <Truck className="h-3.5 w-3.5 text-blue-600 animate-pulse" /> Shipped &amp; In Transit
+          </span>
+        );
+      case "Packed":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 font-extrabold text-xs">
+            <Package className="h-3.5 w-3.5 text-cyan-600" /> Packed &amp; Ready
           </span>
         );
       case "Processing":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 font-extrabold text-xs">
-            <Clock className="h-3.5 w-3.5 text-amber-600" /> Order Processing
+            <Clock className="h-3.5 w-3.5 text-amber-600" /> Processing
           </span>
         );
       case "Confirmed":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 font-extrabold text-xs">
-            <Check className="h-3.5 w-3.5 text-indigo-600" /> Order Confirmed
+            <Check className="h-3.5 w-3.5 text-indigo-600" /> Confirmed
           </span>
         );
       case "Cancelled":
@@ -965,47 +977,126 @@ function ProfilePage() {
                               </div>
                             </div>
 
-                            {/* Tracking Timeline (if expanded or shipped) */}
+                            {/* Tracking Multi-Step Progress & Courier Banner */}
                             {ord.orderStatus && ord.orderStatus !== "Cancelled" && (
-                              <div className="bg-muted/30 rounded-2xl p-3 sm:p-4 border border-border/50">
-                                <div className="grid grid-cols-4 gap-2 text-center text-[10px] sm:text-xs">
-                                  <div className="flex flex-col items-center">
-                                    <div className="h-6 w-6 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold mb-1">
-                                      ✓
-                                    </div>
-                                    <span className="font-bold text-foreground">Placed</span>
-                                  </div>
-                                  <div className="flex flex-col items-center">
-                                    <div className={`h-6 w-6 rounded-full flex items-center justify-center font-bold mb-1 ${
-                                      ord.orderStatus === "Processing" || ord.orderStatus === "Shipped" || ord.orderStatus === "Delivered"
-                                        ? "bg-emerald-500 text-white"
-                                        : "bg-muted text-muted-foreground"
-                                    }`}>
-                                      ✓
-                                    </div>
-                                    <span className="font-bold text-foreground">Confirmed</span>
-                                  </div>
-                                  <div className="flex flex-col items-center">
-                                    <div className={`h-6 w-6 rounded-full flex items-center justify-center font-bold mb-1 ${
-                                      ord.orderStatus === "Shipped" || ord.orderStatus === "Delivered"
-                                        ? "bg-blue-600 text-white animate-pulse"
-                                        : "bg-muted text-muted-foreground"
-                                    }`}>
-                                      {ord.orderStatus === "Delivered" ? "✓" : "3"}
-                                    </div>
-                                    <span className="font-bold text-foreground">Shipped</span>
-                                  </div>
-                                  <div className="flex flex-col items-center">
-                                    <div className={`h-6 w-6 rounded-full flex items-center justify-center font-bold mb-1 ${
-                                      ord.orderStatus === "Delivered"
-                                        ? "bg-emerald-500 text-white"
-                                        : "bg-muted text-muted-foreground"
-                                    }`}>
-                                      {ord.orderStatus === "Delivered" ? "✓" : "4"}
-                                    </div>
-                                    <span className="font-bold text-foreground">Delivered</span>
+                              <div className="space-y-3">
+                                {/* 6-Step Visual Stepper */}
+                                <div className="bg-muted/30 rounded-2xl p-3 sm:p-4 border border-border/50">
+                                  <div className="grid grid-cols-6 gap-1 sm:gap-2 text-center text-[9px] sm:text-xs">
+                                    {[
+                                      { key: "Placed", label: "Placed", index: 0 },
+                                      { key: "Confirmed", label: "Confirmed", index: 1 },
+                                      { key: "Packed", label: "Packed", index: 2 },
+                                      { key: "Shipped", label: "Shipped", index: 3 },
+                                      { key: "Out for Delivery", label: "Out for Delivery", index: 4 },
+                                      { key: "Delivered", label: "Delivered", index: 5 },
+                                    ].map((st) => {
+                                      const ordStatusIndex = (() => {
+                                        switch (ord.orderStatus) {
+                                          case "Pending":
+                                            return 0;
+                                          case "Confirmed":
+                                          case "Processing":
+                                            return 1;
+                                          case "Packed":
+                                            return 2;
+                                          case "Shipped":
+                                            return 3;
+                                          case "Out for Delivery":
+                                            return 4;
+                                          case "Delivered":
+                                            return 5;
+                                          default:
+                                            return 1;
+                                        }
+                                      })();
+
+                                      const isPassed = ordStatusIndex >= st.index;
+                                      const isCurrent = ordStatusIndex === st.index;
+
+                                      return (
+                                        <div key={st.key} className="flex flex-col items-center">
+                                          <div
+                                            className={`h-5 w-5 sm:h-6 sm:w-6 rounded-full flex items-center justify-center font-bold mb-1 text-[10px] ${
+                                              isCurrent
+                                                ? "bg-primary text-primary-foreground ring-2 ring-primary/30"
+                                                : isPassed
+                                                ? "bg-emerald-500 text-white"
+                                                : "bg-muted text-muted-foreground"
+                                            }`}
+                                          >
+                                            {isPassed ? "✓" : st.index + 1}
+                                          </div>
+                                          <span
+                                            className={`leading-tight font-bold line-clamp-1 ${
+                                              isCurrent
+                                                ? "text-primary font-black"
+                                                : isPassed
+                                                ? "text-foreground"
+                                                : "text-muted-foreground"
+                                            }`}
+                                          >
+                                            {st.label}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
+
+                                {/* Courier & AWB Info Strip */}
+                                {(ord.courierName || ord.trackingNumber || ord.expectedDeliveryDate) && (
+                                  <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-xs">
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                      {ord.courierName && (
+                                        <div>
+                                          <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                                            Courier Partner
+                                          </span>
+                                          <span className="font-extrabold text-foreground">
+                                            {ord.courierName}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {ord.trackingNumber && (
+                                        <div>
+                                          <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                                            AWB Number
+                                          </span>
+                                          <span className="font-mono font-bold text-foreground">
+                                            {ord.trackingNumber}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {ord.expectedDeliveryDate && (
+                                        <div>
+                                          <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                                            Expected Delivery
+                                          </span>
+                                          <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                                            {new Date(ord.expectedDeliveryDate).toLocaleDateString("en-IN", {
+                                              weekday: "short",
+                                              day: "numeric",
+                                              month: "short",
+                                            })}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <Link
+                                      to="/track-order"
+                                      search={{
+                                        orderNumber: ord.orderNumber,
+                                        contact: ord.shippingAddress?.email || ord.shippingAddress?.phone || customer?.email || "",
+                                      }}
+                                      className="inline-flex items-center gap-1 font-black text-primary hover:underline text-xs"
+                                    >
+                                      <span>Live Tracking</span>
+                                      <ExternalLink className="h-3 w-3" />
+                                    </Link>
+                                  </div>
+                                )}
                               </div>
                             )}
 

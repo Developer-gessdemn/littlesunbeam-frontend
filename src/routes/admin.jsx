@@ -62,6 +62,7 @@ import {
   Ruler,
   Tag,
   Star,
+  ExternalLink,
 } from "lucide-react";
 import {
   AreaChart,
@@ -113,6 +114,8 @@ function AdminPage() {
     setShopByPrintEnabled,
     codEnabled,
     setCodEnabled,
+    standardSizeChartEnabled,
+    setStandardSizeChartEnabled,
     refreshSettings,
   } = useShop();
 
@@ -302,6 +305,57 @@ function AdminPage() {
   const [copiedAddressId, setCopiedAddressId] = useState(null);
   const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, product: null });
 
+  // Courier & Manual Tracking State
+  const [courierForm, setCourierForm] = useState({
+    courierName: "",
+    trackingNumber: "",
+    trackingUrl: "",
+    shippingDate: "",
+    expectedDeliveryDate: "",
+    orderStatus: "Processing",
+    sendNotification: true,
+    customMessage: "",
+  });
+  const [newCheckpointForm, setNewCheckpointForm] = useState({
+    status: "In Transit",
+    location: "",
+    description: "",
+    date: new Date().toISOString().split("T")[0],
+    time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false }),
+    updateOrderStatusTo: "",
+    sendNotification: false,
+    customMessage: "",
+  });
+  const [savingCourier, setSavingCourier] = useState(false);
+  const [addingCheckpoint, setAddingCheckpoint] = useState(false);
+
+  useEffect(() => {
+    if (selectedOrder) {
+      const sDate = selectedOrder.shippingDate || selectedOrder.shippedAt;
+      const eDate = selectedOrder.expectedDeliveryDate;
+      setCourierForm({
+        courierName: selectedOrder.courierName || "",
+        trackingNumber: selectedOrder.trackingNumber || "",
+        trackingUrl: selectedOrder.trackingUrl || "",
+        shippingDate: sDate ? new Date(sDate).toISOString().split("T")[0] : "",
+        expectedDeliveryDate: eDate ? new Date(eDate).toISOString().split("T")[0] : "",
+        orderStatus: selectedOrder.orderStatus || "Processing",
+        sendNotification: true,
+        customMessage: "",
+      });
+      setNewCheckpointForm({
+        status: selectedOrder.orderStatus || "In Transit",
+        location: "",
+        description: "",
+        date: new Date().toISOString().split("T")[0],
+        time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false }),
+        updateOrderStatusTo: "",
+        sendNotification: false,
+        customMessage: "",
+      });
+    }
+  }, [selectedOrder]);
+
   // Category Modal State
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
@@ -386,34 +440,33 @@ function AdminPage() {
 
   const GENDERS = ["Boy", "Girl", "Unisex"];
   const DEFAULT_AGE_GROUPS = [
-    "Newborn",
     "0 - 3 Months",
     "3 - 6 Months",
     "6 - 12 Months",
-    "1 - 2 Years",
-    "2 - 3 Years",
-    "3 - 4 Years",
-    "4 - 5 Years",
-    "5 - 6 Years",
+    "1 - 4 Years",
   ];
   const DEFAULT_AVAILABLE_SIZES = [
     "Free Size",
-    "Newborn",
     "0 - 3 Months",
     "3 - 6 Months",
     "6 - 12 Months",
-    "1 - 2 Years",
-    "2 - 3 Years",
-    "3 - 4 Years",
-    "4 - 5 Years",
-    "5 - 6 Years",
+    "1 - 4 Years",
   ];
 
   // Custom Age Groups state
   const [customAgeGroups, setCustomAgeGroups] = useState(() => {
     try {
       const saved = localStorage.getItem("lsb_custom_age_groups");
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (ag) =>
+            !["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "4 - 5 Years", "5 - 6 Years", "Newborn"].includes(ag) &&
+            !DEFAULT_AGE_GROUPS.includes(ag)
+        );
+      }
+      return [];
     } catch {
       return [];
     }
@@ -425,7 +478,16 @@ function AdminPage() {
   const [customSizes, setCustomSizes] = useState(() => {
     try {
       const saved = localStorage.getItem("lsb_custom_sizes");
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (sz) =>
+            !["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "4 - 5 Years", "5 - 6 Years", "Newborn"].includes(sz) &&
+            !DEFAULT_AVAILABLE_SIZES.includes(sz)
+        );
+      }
+      return [];
     } catch {
       return [];
     }
@@ -504,6 +566,7 @@ function AdminPage() {
       image: "",
       gallery: [],
       sizeChartImage: "",
+      showStandardSizeChart: true,
       video: "",
       videos: [],
       // Color-based Product Variants (Color -> Images + Sizes + Size-wise Inventory)
@@ -514,11 +577,12 @@ function AdminPage() {
           displayName: "Blue",
           hex: "#3B82F6",
           images: [],
-          sizes: ["1 - 2 Years", "2 - 3 Years", "3 - 4 Years"],
+          sizes: ["0 - 3 Months", "3 - 6 Months", "6 - 12 Months", "1 - 4 Years"],
           inventory: [
-            { size: "1 - 2 Years", stock: 10, sku: `${initialSku}-BLU-12Y`, price: "", mrp: "" },
-            { size: "2 - 3 Years", stock: 15, sku: `${initialSku}-BLU-23Y`, price: "", mrp: "" },
-            { size: "3 - 4 Years", stock: 8, sku: `${initialSku}-BLU-34Y`, price: "", mrp: "" },
+            { size: "0 - 3 Months", stock: 10, sku: `${initialSku}-BLU-03M`, price: "", mrp: "" },
+            { size: "3 - 6 Months", stock: 15, sku: `${initialSku}-BLU-36M`, price: "", mrp: "" },
+            { size: "6 - 12 Months", stock: 12, sku: `${initialSku}-BLU-612M`, price: "", mrp: "" },
+            { size: "1 - 4 Years", stock: 8, sku: `${initialSku}-BLU-14Y`, price: "", mrp: "" },
           ],
         },
       ],
@@ -729,10 +793,12 @@ function AdminPage() {
       displayName: chosenColor,
       hex: chosenHex,
       images: [],
-      sizes: ["1 - 2 Years", "2 - 3 Years"],
+      sizes: ["0 - 3 Months", "3 - 6 Months", "6 - 12 Months", "1 - 4 Years"],
       inventory: [
-        { size: "1 - 2 Years", stock: 10, sku: `${parentSku}-${colorSlug}-12Y`, price: "", mrp: "" },
-        { size: "2 - 3 Years", stock: 10, sku: `${parentSku}-${colorSlug}-23Y`, price: "", mrp: "" },
+        { size: "0 - 3 Months", stock: 10, sku: `${parentSku}-${colorSlug}-03M`, price: "", mrp: "" },
+        { size: "3 - 6 Months", stock: 10, sku: `${parentSku}-${colorSlug}-36M`, price: "", mrp: "" },
+        { size: "6 - 12 Months", stock: 10, sku: `${parentSku}-${colorSlug}-612M`, price: "", mrp: "" },
+        { size: "1 - 4 Years", stock: 10, sku: `${parentSku}-${colorSlug}-14Y`, price: "", mrp: "" },
       ],
     };
 
@@ -1123,7 +1189,7 @@ function AdminPage() {
     } else {
       // Build from legacy product colors & variants
       const sourceColors = Array.isArray(p.colors) && p.colors.length > 0 ? p.colors : [{ name: "Default", hex: "#E5E7EB" }];
-      const sourceSizes = Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes : ["0 - 3 Months", "3 - 6 Months", "6 - 12 Months"];
+      const sourceSizes = Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes : ["0 - 3 Months", "3 - 6 Months", "6 - 12 Months", "1 - 4 Years"];
       const parentSku = p.sku || "SUN-PROD";
 
       loadedColorVariants = sourceColors.map((col, colIdx) => {
@@ -1163,7 +1229,10 @@ function AdminPage() {
       ? p.videos.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean)
       : (p.video ? [p.video.trim()] : []);
     const mainVideo = p.video || existingVideos[0] || "";
-    setVideoInputUrl("");
+    let initialAgeGroup = p.ageGroup || p.age || "0 - 3 Months";
+    if (["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "2 - 4 Years"].includes(initialAgeGroup)) {
+      initialAgeGroup = "1 - 4 Years";
+    }
 
     setProductForm({
       name: p.name || "",
@@ -1175,7 +1244,7 @@ function AdminPage() {
       description: p.description || "",
       details: p.details || "",
       gender: p.gender || "Unisex",
-      ageGroup: p.ageGroup || p.age || "0 - 3 Months",
+      ageGroup: initialAgeGroup,
       fabric: p.fabric || "",
       pattern: p.pattern || "",
       print: p.print || (existingPrints[0] || ""),
@@ -1195,6 +1264,7 @@ function AdminPage() {
       image: mainImage,
       gallery: Array.isArray(p.gallery) ? p.gallery : (mainImage ? [mainImage] : []),
       sizeChartImage: p.sizeChartImage || "",
+      showStandardSizeChart: p.showStandardSizeChart !== false,
       video: mainVideo,
       videos: existingVideos,
       colorVariants: loadedColorVariants,
@@ -1316,6 +1386,7 @@ function AdminPage() {
         image: mainImage,
         gallery: uniqueGallery.length > 0 ? uniqueGallery : [mainImage],
         sizeChartImage: productForm.sizeChartImage ? productForm.sizeChartImage.trim() : "",
+        showStandardSizeChart: productForm.showStandardSizeChart !== false,
         video: productForm.video || (Array.isArray(productForm.videos) && productForm.videos[0]) || "",
         videos: Array.isArray(productForm.videos)
           ? productForm.videos.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean)
@@ -1559,10 +1630,17 @@ function AdminPage() {
   // --- Order Actions ---
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
     try {
-      await adminService.updateOrderStatus(orderId, { orderStatus: newStatus });
-      showNotification(`Order status updated to "${newStatus}"`);
+      const res = await adminService.updateOrderStatus(orderId, {
+        orderStatus: newStatus,
+        sendNotification: true,
+      });
+      showNotification(`Order status updated to "${newStatus}" & customer notified!`);
       if (selectedOrder && (selectedOrder._id === orderId || selectedOrder.orderNumber === orderId)) {
-        setSelectedOrder((prev) => ({ ...prev, orderStatus: newStatus }));
+        setSelectedOrder((prev) => ({
+          ...prev,
+          orderStatus: newStatus,
+          ...(res?.order?.trackingHistory ? { trackingHistory: res.order.trackingHistory } : {}),
+        }));
       }
       loadAllData();
     } catch (err) {
@@ -1580,6 +1658,103 @@ function AdminPage() {
       loadAllData();
     } catch (err) {
       alert(err.message || "Failed to update payment status");
+    }
+  };
+
+  const getCourierUrlHelper = (courierName, awb) => {
+    if (!awb) return "";
+    const cleanAwb = awb.trim();
+    const cLower = (courierName || "").toLowerCase();
+    if (cLower.includes("delhivery")) return `https://www.delhivery.com/track/package/${cleanAwb}`;
+    if (cLower.includes("blue dart") || cLower.includes("bluedart")) return `https://www.bluedart.com/tracking?trackNumber=${cleanAwb}`;
+    if (cLower.includes("dtdc")) return `https://www.dtdc.in/tracking/shipment-tracking.asp?trkid=${cleanAwb}`;
+    if (cLower.includes("india post") || cLower.includes("indiapost")) return `https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx?consNo=${cleanAwb}`;
+    if (cLower.includes("shiprocket")) return `https://shiprocket.co/tracking/${cleanAwb}`;
+    if (cLower.includes("xpressbees")) return `https://www.xpressbees.com/track?awb=${cleanAwb}`;
+    if (cLower.includes("shadowfax")) return `https://tracker.shadowfax.in/#/track/${cleanAwb}`;
+    if (cLower.includes("ecom express") || cLower.includes("ecomexpress")) return `https://ecomexpress.in/tracking/?awb_full_detail=${cleanAwb}`;
+    return "";
+  };
+
+  const handleSaveCourierDetails = async (e) => {
+    if (e) e.preventDefault();
+    if (!selectedOrder) return;
+
+    setSavingCourier(true);
+    try {
+      const orderId = selectedOrder._id || selectedOrder.orderNumber;
+      const res = await adminService.updateOrderCourier(orderId, courierForm);
+      showNotification("✅ Courier details and tracking information updated successfully!");
+      if (res?.order) {
+        setSelectedOrder(res.order);
+      } else {
+        setSelectedOrder((prev) => ({
+          ...prev,
+          ...courierForm,
+        }));
+      }
+      loadAllData();
+    } catch (err) {
+      alert(err.message || "Failed to update courier details");
+    } finally {
+      setSavingCourier(false);
+    }
+  };
+
+  const handleAddTrackingCheckpoint = async (e) => {
+    if (e) e.preventDefault();
+    if (!selectedOrder || !newCheckpointForm.description.trim()) {
+      alert("Please enter a description for this tracking checkpoint.");
+      return;
+    }
+
+    setAddingCheckpoint(true);
+    try {
+      const orderId = selectedOrder._id || selectedOrder.orderNumber;
+      const res = await adminService.addTrackingUpdate(orderId, newCheckpointForm);
+      showNotification("📍 Tracking checkpoint added to timeline successfully!");
+      if (res?.order) {
+        setSelectedOrder(res.order);
+      } else if (res?.trackingHistory) {
+        setSelectedOrder((prev) => ({
+          ...prev,
+          trackingHistory: res.trackingHistory,
+          ...(newCheckpointForm.updateOrderStatusTo ? { orderStatus: newCheckpointForm.updateOrderStatusTo } : {}),
+        }));
+      }
+      // Reset description
+      setNewCheckpointForm((prev) => ({
+        ...prev,
+        description: "",
+        location: "",
+      }));
+      loadAllData();
+    } catch (err) {
+      alert(err.message || "Failed to add tracking checkpoint");
+    } finally {
+      setAddingCheckpoint(false);
+    }
+  };
+
+  const handleDeleteTrackingCheckpoint = async (updateId) => {
+    if (!selectedOrder) return;
+    if (!window.confirm("Are you sure you want to delete this tracking checkpoint?")) return;
+
+    try {
+      const orderId = selectedOrder._id || selectedOrder.orderNumber;
+      const res = await adminService.deleteTrackingUpdate(orderId, updateId);
+      showNotification("Tracking checkpoint removed.");
+      if (res?.order) {
+        setSelectedOrder(res.order);
+      } else if (res?.trackingHistory) {
+        setSelectedOrder((prev) => ({
+          ...prev,
+          trackingHistory: res.trackingHistory,
+        }));
+      }
+      loadAllData();
+    } catch (err) {
+      alert(err.message || "Failed to remove tracking checkpoint");
     }
   };
 
@@ -2362,85 +2537,174 @@ function AdminPage() {
                   </button>
                 </div>
 
-                {/* ─── COD (Cash on Delivery) Option Toggle Card ─── */}
-                <div className={`rounded-2xl border p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition shadow-xs ${
-                  codEnabled
-                    ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20"
-                    : "border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20"
-                }`}>
-                  <div className="flex items-start sm:items-center gap-3">
-                    <div className={`h-11 w-11 rounded-2xl grid place-items-center shrink-0 shadow-2xs ${
-                      codEnabled
-                        ? "bg-emerald-500 text-white"
-                        : "bg-amber-500 text-white"
-                    }`}>
-                      <Banknote className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm font-black text-foreground">
-                          Cash on Delivery (COD) Option
-                        </h3>
-                        <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border ${
-                          codEnabled
-                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                            : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                        }`}>
-                          {codEnabled ? "🟢 Available at Checkout" : "🔴 Hidden / Disabled at Checkout"}
-                        </span>
+                {/* ─── Store Controls: COD & Standard Baby Sizing Chart Toggles ─── */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* COD (Cash on Delivery) Option Toggle Card */}
+                  <div className={`rounded-2xl border p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition shadow-xs ${
+                    codEnabled
+                      ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20"
+                      : "border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20"
+                  }`}>
+                    <div className="flex items-start sm:items-center gap-3">
+                      <div className={`h-11 w-11 rounded-2xl grid place-items-center shrink-0 shadow-2xs ${
+                        codEnabled
+                          ? "bg-emerald-500 text-white"
+                          : "bg-amber-500 text-white"
+                      }`}>
+                        <Banknote className="h-5 w-5" />
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {codEnabled
-                          ? "Cash on Delivery is currently active. Customers can choose COD during checkout."
-                          : "Cash on Delivery is turned OFF. The COD option is completely hidden from the checkout page."}
-                      </p>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-black text-foreground">
+                            Cash on Delivery (COD)
+                          </h3>
+                          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border ${
+                            codEnabled
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                              : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                          }`}>
+                            {codEnabled ? "🟢 Available" : "🔴 Hidden"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {codEnabled
+                            ? "COD is active. Customers can choose COD at checkout."
+                            : "COD is turned OFF and hidden from checkout."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
+                      <span className="text-xs font-bold text-muted-foreground">
+                        {codEnabled ? "ON" : "OFF"}
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={codEnabled}
+                        title={`Click to turn ${codEnabled ? "OFF" : "ON"} Cash on Delivery`}
+                        onClick={async () => {
+                          const nextCod = !codEnabled;
+                          if (setCodEnabled) setCodEnabled(nextCod);
+                          try {
+                            localStorage.setItem("little_sunbeam_cod_enabled", String(nextCod));
+                            const storedSettings = JSON.parse(localStorage.getItem("little_sunbeam_settings") || "{}");
+                            const merged = { ...storedSettings, codEnabled: nextCod };
+                            localStorage.setItem("little_sunbeam_settings", JSON.stringify(merged));
+                            window.dispatchEvent(new CustomEvent("settings_updated", { detail: merged }));
+                            window.dispatchEvent(new CustomEvent("cod_updated", { detail: nextCod }));
+                            if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+                              const bc = new BroadcastChannel("little_sunbeam_broadcast_channel");
+                              bc.postMessage({ type: "COD_UPDATED", codEnabled: nextCod });
+                              bc.close();
+                            }
+                          } catch { }
+                          try {
+                            await adminService.updateSettings({ codEnabled: nextCod });
+                            showNotification(
+                              `Cash on Delivery (COD) is now ${nextCod ? "ENABLED" : "DISABLED"} for checkout!`
+                            );
+                          } catch {
+                            showNotification(
+                              `Cash on Delivery (COD) is now ${nextCod ? "ENABLED" : "DISABLED"}!`
+                            );
+                          }
+                        }}
+                        className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                          codEnabled ? "bg-emerald-500" : "bg-muted-foreground/30"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                            codEnabled ? "translate-x-7" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
-                    <span className="text-xs font-bold text-muted-foreground">
-                      {codEnabled ? "COD is ON" : "COD is OFF"}
-                    </span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={codEnabled}
-                      title={`Click to turn ${codEnabled ? "OFF" : "ON"} Cash on Delivery`}
-                      onClick={async () => {
-                        const nextCod = !codEnabled;
-                        if (setCodEnabled) setCodEnabled(nextCod);
-                        try {
-                          localStorage.setItem("little_sunbeam_cod_enabled", String(nextCod));
-                          localStorage.setItem("little_sunbeam_settings", JSON.stringify({ codEnabled: nextCod }));
-                          window.dispatchEvent(new CustomEvent("settings_updated", { detail: { codEnabled: nextCod } }));
-                          window.dispatchEvent(new CustomEvent("cod_updated", { detail: nextCod }));
-                          if (typeof window !== "undefined" && "BroadcastChannel" in window) {
-                            const bc = new BroadcastChannel("little_sunbeam_broadcast_channel");
-                            bc.postMessage({ type: "COD_UPDATED", codEnabled: nextCod });
-                            bc.close();
+                  {/* Standard Baby Sizing Chart Global Toggle Card */}
+                  <div className={`rounded-2xl border p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition shadow-xs ${
+                    standardSizeChartEnabled
+                      ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20"
+                      : "border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20"
+                  }`}>
+                    <div className="flex items-start sm:items-center gap-3">
+                      <div className={`h-11 w-11 rounded-2xl grid place-items-center shrink-0 shadow-2xs ${
+                        standardSizeChartEnabled
+                          ? "bg-emerald-500 text-white"
+                          : "bg-amber-500 text-white"
+                      }`}>
+                        <Ruler className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-black text-foreground">
+                            Standard Baby Sizing Chart
+                          </h3>
+                          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border ${
+                            standardSizeChartEnabled
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                              : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                          }`}>
+                            {standardSizeChartEnabled ? "🟢 Enabled Storewide" : "🔴 Disabled Storewide"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {standardSizeChartEnabled
+                            ? "Standard baby size guide table is shown on product pages when no custom chart is uploaded."
+                            : "Standard sizing table is hidden storewide. Only custom size charts will appear."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
+                      <span className="text-xs font-bold text-muted-foreground">
+                        {standardSizeChartEnabled ? "ON" : "OFF"}
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={standardSizeChartEnabled}
+                        title={`Click to turn ${standardSizeChartEnabled ? "OFF" : "ON"} Standard Baby Sizing Chart`}
+                        onClick={async () => {
+                          const nextStatus = !standardSizeChartEnabled;
+                          if (setStandardSizeChartEnabled) setStandardSizeChartEnabled(nextStatus);
+                          try {
+                            localStorage.setItem("little_sunbeam_size_chart_enabled", String(nextStatus));
+                            const storedSettings = JSON.parse(localStorage.getItem("little_sunbeam_settings") || "{}");
+                            const merged = { ...storedSettings, standardSizeChartEnabled: nextStatus };
+                            localStorage.setItem("little_sunbeam_settings", JSON.stringify(merged));
+                            window.dispatchEvent(new CustomEvent("settings_updated", { detail: merged }));
+                            window.dispatchEvent(new CustomEvent("size_chart_updated", { detail: nextStatus }));
+                            if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+                              const bc = new BroadcastChannel("little_sunbeam_broadcast_channel");
+                              bc.postMessage({ type: "SIZE_CHART_UPDATED", standardSizeChartEnabled: nextStatus });
+                              bc.close();
+                            }
+                          } catch { }
+                          try {
+                            await adminService.updateSettings({ standardSizeChartEnabled: nextStatus });
+                            showNotification(
+                              `Standard Baby Sizing Chart is now ${nextStatus ? "ENABLED" : "DISABLED"} storewide!`
+                            );
+                          } catch {
+                            showNotification(
+                              `Standard Baby Sizing Chart is now ${nextStatus ? "ENABLED" : "DISABLED"}!`
+                            );
                           }
-                        } catch { }
-                        try {
-                          await adminService.updateSettings({ codEnabled: nextCod });
-                          showNotification(
-                            `Cash on Delivery (COD) is now ${nextCod ? "ENABLED" : "DISABLED"} for checkout!`
-                          );
-                        } catch {
-                          showNotification(
-                            `Cash on Delivery (COD) is now ${nextCod ? "ENABLED" : "DISABLED"}!`
-                          );
-                        }
-                      }}
-                      className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                        codEnabled ? "bg-emerald-500" : "bg-muted-foreground/30"
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                          codEnabled ? "translate-x-7" : "translate-x-0"
+                        }}
+                        className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                          standardSizeChartEnabled ? "bg-emerald-500" : "bg-muted-foreground/30"
                         }`}
-                      />
-                    </button>
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                            standardSizeChartEnabled ? "translate-x-7" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -2737,7 +3001,7 @@ function AdminPage() {
                 {/* Filter Tabs & Search */}
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3">
                   <div className="flex flex-wrap gap-1.5">
-                    {["All", "Pending", "Confirmed", "Processing", "Shipped", "Delivered", "Cancelled"].map(
+                    {["All", "Pending", "Confirmed", "Processing", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"].map(
                       (st) => (
                         <button
                           key={st}
@@ -2757,7 +3021,7 @@ function AdminPage() {
                     <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                     <input
                       type="text"
-                      placeholder="Search order #, customer..."
+                      placeholder="Search order #, customer, AWB..."
                       value={orderSearch}
                       onChange={(e) => setOrderSearch(e.target.value)}
                       className="w-full rounded-full border border-border bg-muted/30 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-primary"
@@ -2795,6 +3059,7 @@ function AdminPage() {
                           <tr>
                             <th className="px-4 py-3">Order Number</th>
                             <th className="px-4 py-3">Customer</th>
+                            <th className="px-4 py-3">Courier & Tracking</th>
                             <th className="px-4 py-3">Total Amount</th>
                             <th className="px-4 py-3">Payment</th>
                             <th className="px-4 py-3">Status</th>
@@ -2821,6 +3086,30 @@ function AdminPage() {
                                   {o.shippingAddress?.city}, {o.shippingAddress?.state}
                                 </p>
                               </td>
+                              <td className="px-4 py-3">
+                                {o.courierName || o.trackingNumber ? (
+                                  <div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-bold text-xs text-foreground">
+                                        {o.courierName || "Courier"}
+                                      </span>
+                                    </div>
+                                    {o.trackingNumber ? (
+                                      <span className="font-mono text-[11px] text-muted-foreground block">
+                                        AWB: {o.trackingNumber}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-amber-600 font-semibold block">
+                                        AWB pending
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-[11px] text-muted-foreground italic">
+                                    Not assigned
+                                  </span>
+                                )}
+                              </td>
                               <td className="px-4 py-3 font-bold">₹{o.totalAmount}</td>
                               <td className="px-4 py-3">
                                 <span
@@ -2840,9 +3129,9 @@ function AdminPage() {
                                   }
                                   className={`rounded-xl px-2.5 py-1 text-xs font-extrabold outline-none border ${o.orderStatus === "Delivered"
                                     ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                                    : o.orderStatus === "Shipped"
+                                    : o.orderStatus === "Shipped" || o.orderStatus === "Out for Delivery"
                                       ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
-                                      : o.orderStatus === "Processing"
+                                      : o.orderStatus === "Packed" || o.orderStatus === "Processing"
                                         ? "border-purple-500 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400"
                                         : o.orderStatus === "Cancelled"
                                           ? "border-rose-500 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
@@ -2852,7 +3141,9 @@ function AdminPage() {
                                   <option value="Pending">Pending</option>
                                   <option value="Confirmed">Confirmed</option>
                                   <option value="Processing">Processing</option>
+                                  <option value="Packed">Packed</option>
                                   <option value="Shipped">Shipped</option>
+                                  <option value="Out for Delivery">Out for Delivery</option>
                                   <option value="Delivered">Delivered</option>
                                   <option value="Cancelled">Cancelled</option>
                                 </select>
@@ -6328,6 +6619,40 @@ function AdminPage() {
                                 </button>
                               </div>
                             )}
+
+                            {/* Per-Product Standard Baby Sizing Chart Fallback Toggle */}
+                            <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 flex items-center justify-between gap-3 mt-4">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-foreground">Standard Baby Sizing Chart Fallback</span>
+                                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                    productForm.showStandardSizeChart !== false
+                                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                      : "bg-muted text-muted-foreground border-border"
+                                  }`}>
+                                    {productForm.showStandardSizeChart !== false ? "Enabled" : "Disabled"}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground mt-0.5">
+                                  Show standard baby sizing measurements table when no custom size chart image is uploaded for this product.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={productForm.showStandardSizeChart !== false}
+                                onClick={() => setProductForm((prev) => ({ ...prev, showStandardSizeChart: prev.showStandardSizeChart === false ? true : false }))}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                  productForm.showStandardSizeChart !== false ? "bg-primary" : "bg-muted-foreground/30"
+                                }`}
+                              >
+                                <span
+                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                                    productForm.showStandardSizeChart !== false ? "translate-x-5" : "translate-x-0"
+                                  }`}
+                                />
+                              </button>
+                            </div>
                           </div>
                         </div>
 
@@ -6740,25 +7065,435 @@ function AdminPage() {
                       {selectedOrder.orderStatus}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {["Pending", "Confirmed", "Processing", "Shipped", "Delivered", "Cancelled"].map(
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {["Pending", "Confirmed", "Processing", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"].map(
                       (st) => (
                         <button
                           key={st}
+                          type="button"
                           onClick={() =>
                             handleUpdateOrderStatus(
                               selectedOrder._id || selectedOrder.orderNumber,
                               st
                             )
                           }
-                          className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${selectedOrder.orderStatus === st
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-card border border-border hover:bg-muted"
+                          className={`rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer ${selectedOrder.orderStatus === st
+                            ? "bg-primary text-primary-foreground shadow-xs"
+                            : "bg-card border border-border hover:bg-muted text-foreground"
                             }`}
                         >
                           {st}
                         </button>
                       )
+                    )}
+                  </div>
+                </div>
+
+                {/* ─── MANUAL COURIER & DISPATCH MANAGER ───────────────────────── */}
+                <div className="rounded-2xl border-2 border-amber-200/80 bg-linear-to-b from-amber-50/40 via-card to-card p-5 shadow-sm space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/80 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-xl bg-amber-500/10 text-amber-700">
+                        <Truck className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-black text-foreground uppercase tracking-wide">
+                          Manual Courier &amp; Tracking Details
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          Enter shipping partner details, AWB number, and expected delivery date
+                        </p>
+                      </div>
+                    </div>
+
+                    <a
+                      href={`/track-order?orderNumber=${encodeURIComponent(selectedOrder.orderNumber)}&contact=${encodeURIComponent(
+                        selectedOrder.shippingAddress?.email || selectedOrder.shippingAddress?.phone || ""
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-extrabold transition shadow-2xs self-start sm:self-auto"
+                    >
+                      <span>Public Tracking View</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
+
+                  {/* Courier Partner & AWB Form */}
+                  <form onSubmit={handleSaveCourierDetails} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Courier Partner */}
+                      <div>
+                        <label className="block text-xs font-black uppercase text-muted-foreground mb-1.5">
+                          Courier Name / Company
+                        </label>
+                        <div className="space-y-1.5">
+                          <select
+                            value={courierForm.courierName}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const suggestedUrl = getCourierUrlHelper(val, courierForm.trackingNumber);
+                              setCourierForm((prev) => ({
+                                ...prev,
+                                courierName: val,
+                                ...(suggestedUrl ? { trackingUrl: suggestedUrl } : {}),
+                              }));
+                            }}
+                            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground focus:border-primary focus:outline-hidden"
+                          >
+                            <option value="">-- Select Courier Partner --</option>
+                            <option value="Delhivery">Delhivery</option>
+                            <option value="Blue Dart">Blue Dart</option>
+                            <option value="DTDC">DTDC</option>
+                            <option value="Shiprocket">Shiprocket</option>
+                            <option value="India Post">India Post (Speed Post)</option>
+                            <option value="Xpressbees">Xpressbees</option>
+                            <option value="Shadowfax">Shadowfax</option>
+                            <option value="Amazon Shipping">Amazon Shipping</option>
+                            <option value="Ecom Express">Ecom Express</option>
+                            <option value="Other">Other / Custom</option>
+                          </select>
+
+                          {courierForm.courierName === "Other" && (
+                            <input
+                              type="text"
+                              placeholder="Enter custom courier name..."
+                              onChange={(e) =>
+                                setCourierForm((prev) => ({ ...prev, courierName: e.target.value }))
+                              }
+                              className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-semibold"
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* AWB Tracking Number */}
+                      <div>
+                        <label className="block text-xs font-black uppercase text-muted-foreground mb-1.5">
+                          AWB / Tracking Number
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. DEL123456789 or 74839201"
+                          value={courierForm.trackingNumber}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const suggestedUrl = getCourierUrlHelper(courierForm.courierName, val);
+                            setCourierForm((prev) => ({
+                              ...prev,
+                              trackingNumber: val,
+                              ...(suggestedUrl ? { trackingUrl: suggestedUrl } : {}),
+                            }));
+                          }}
+                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold font-mono text-foreground focus:border-primary focus:outline-hidden"
+                        />
+                      </div>
+
+                      {/* Shipping Date */}
+                      <div>
+                        <label className="block text-xs font-black uppercase text-muted-foreground mb-1.5">
+                          Shipping Date
+                        </label>
+                        <input
+                          type="date"
+                          value={courierForm.shippingDate}
+                          onChange={(e) =>
+                            setCourierForm((prev) => ({ ...prev, shippingDate: e.target.value }))
+                          }
+                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground focus:border-primary focus:outline-hidden"
+                        />
+                      </div>
+
+                      {/* Expected Delivery Date */}
+                      <div>
+                        <label className="block text-xs font-black uppercase text-muted-foreground mb-1.5">
+                          Expected Delivery Date
+                        </label>
+                        <input
+                          type="date"
+                          value={courierForm.expectedDeliveryDate}
+                          onChange={(e) =>
+                            setCourierForm((prev) => ({
+                              ...prev,
+                              expectedDeliveryDate: e.target.value,
+                            }))
+                          }
+                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground focus:border-primary focus:outline-hidden"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Tracking URL */}
+                    <div>
+                      <label className="block text-xs font-black uppercase text-muted-foreground mb-1.5">
+                        Direct Courier Tracking Link (URL)
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://www.delhivery.com/track/package/..."
+                        value={courierForm.trackingUrl}
+                        onChange={(e) =>
+                          setCourierForm((prev) => ({ ...prev, trackingUrl: e.target.value }))
+                        }
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium text-foreground focus:border-primary focus:outline-hidden"
+                      />
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={courierForm.sendNotification}
+                          onChange={(e) =>
+                            setCourierForm((prev) => ({
+                              ...prev,
+                              sendNotification: e.target.checked,
+                            }))
+                          }
+                          className="h-4 w-4 rounded-md border-border text-primary focus:ring-primary accent-amber-600"
+                        />
+                        <span>Send automatic update email to customer ({selectedOrder.shippingAddress?.email || selectedOrder.user?.email || "customer"})</span>
+                      </label>
+
+                      <button
+                        type="submit"
+                        disabled={savingCourier}
+                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-black text-xs uppercase tracking-wider hover:bg-primary/95 transition shadow-sm disabled:opacity-50 cursor-pointer"
+                      >
+                        {savingCourier ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-3.5 w-3.5" />
+                            <span>Save Courier Info</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* ─── ADD TIMELINE CHECKPOINT FORM ───────────────────────────── */}
+                  <div className="pt-4 border-t border-border/80">
+                    <h4 className="text-xs font-black uppercase text-foreground mb-3 flex items-center gap-1.5">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      Add Manual Tracking Checkpoint
+                    </h4>
+
+                    {/* Quick Preset Buttons */}
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      <span className="text-[10px] font-black uppercase text-muted-foreground self-center mr-1">
+                        Presets:
+                      </span>
+                      {[
+                        { label: "📦 Packed in Tiruppur", desc: "Order verified, steam-ironed, and packed at Tiruppur workshop", status: "Packed", loc: "Tiruppur Facility" },
+                        { label: "🚚 Dispatched to Hub", desc: "Shipment handed over to courier and dispatched from origin hub", status: "Shipped", loc: "Tiruppur Hub" },
+                        { label: "📍 Reached City Sorting Center", desc: "Shipment arrived at destination city sorting hub", status: "In Transit", loc: "Central Sorting Center" },
+                        { label: "🏡 Out for Delivery", desc: "Package is out for delivery with courier executive", status: "Out for Delivery", loc: "Destination Delivery Center" },
+                        { label: "🎉 Delivered Successfully", desc: "Shipment safely delivered to customer", status: "Delivered", loc: "Delivery Destination" },
+                      ].map((preset, pIdx) => (
+                        <button
+                          key={pIdx}
+                          type="button"
+                          onClick={() => {
+                            setNewCheckpointForm((prev) => ({
+                              ...prev,
+                              description: preset.desc,
+                              location: preset.loc,
+                              status: preset.status,
+                              updateOrderStatusTo: preset.status,
+                            }));
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-primary/50 text-[11px] font-bold text-foreground hover:bg-primary/10 transition cursor-pointer shadow-2xs"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <form onSubmit={handleAddTrackingCheckpoint} className="space-y-3 bg-muted/30 p-3.5 rounded-2xl border border-border/60">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-muted-foreground uppercase mb-1">
+                            Status Tag
+                          </label>
+                          <select
+                            value={newCheckpointForm.status}
+                            onChange={(e) =>
+                              setNewCheckpointForm((prev) => ({ ...prev, status: e.target.value }))
+                            }
+                            className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-bold"
+                          >
+                            <option value="Order Confirmed">Order Confirmed</option>
+                            <option value="Processing">Processing</option>
+                            <option value="Packed">Packed</option>
+                            <option value="Shipped">Shipped</option>
+                            <option value="In Transit">In Transit</option>
+                            <option value="Out for Delivery">Out for Delivery</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Delayed">Delayed</option>
+                            <option value="Exception">Exception</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-muted-foreground uppercase mb-1">
+                            Location
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Tiruppur Hub, Bengaluru"
+                            value={newCheckpointForm.location}
+                            onChange={(e) =>
+                              setNewCheckpointForm((prev) => ({ ...prev, location: e.target.value }))
+                            }
+                            className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-semibold"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[11px] font-bold text-muted-foreground uppercase mb-1">
+                              Date
+                            </label>
+                            <input
+                              type="date"
+                              value={newCheckpointForm.date}
+                              onChange={(e) =>
+                                setNewCheckpointForm((prev) => ({ ...prev, date: e.target.value }))
+                              }
+                              className="w-full rounded-xl border border-border bg-background px-2 py-1.5 text-xs font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-muted-foreground uppercase mb-1">
+                              Time
+                            </label>
+                            <input
+                              type="time"
+                              value={newCheckpointForm.time}
+                              onChange={(e) =>
+                                setNewCheckpointForm((prev) => ({ ...prev, time: e.target.value }))
+                              }
+                              className="w-full rounded-xl border border-border bg-background px-2 py-1.5 text-xs font-semibold"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-muted-foreground uppercase mb-1">
+                          Activity Description <span className="text-destructive">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Package arrived at central hub and scanned for linehaul transit"
+                          value={newCheckpointForm.description}
+                          onChange={(e) =>
+                            setNewCheckpointForm((prev) => ({ ...prev, description: e.target.value }))
+                          }
+                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium text-foreground focus:border-primary focus:outline-hidden"
+                        />
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                        <div className="flex items-center gap-3">
+                          <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                            <span>Sync Order Status:</span>
+                            <select
+                              value={newCheckpointForm.updateOrderStatusTo}
+                              onChange={(e) =>
+                                setNewCheckpointForm((prev) => ({
+                                  ...prev,
+                                  updateOrderStatusTo: e.target.value,
+                                }))
+                              }
+                              className="rounded-lg border border-border bg-background px-2 py-1 text-xs font-bold"
+                            >
+                              <option value="">(Keep Current)</option>
+                              <option value="Confirmed">Confirmed</option>
+                              <option value="Packed">Packed</option>
+                              <option value="Shipped">Shipped</option>
+                              <option value="Out for Delivery">Out for Delivery</option>
+                              <option value="Delivered">Delivered</option>
+                            </select>
+                          </label>
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={addingCheckpoint || !newCheckpointForm.description.trim()}
+                          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black uppercase tracking-wider transition disabled:opacity-50 cursor-pointer"
+                        >
+                          {addingCheckpoint ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Plus className="h-3.5 w-3.5" />
+                          )}
+                          <span>Add Checkpoint</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* ─── TIMELINE CHECKPOINTS LIST ──────────────────────────────── */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <h4 className="text-xs font-black uppercase text-foreground">
+                        Tracking Timeline History ({selectedOrder.trackingHistory?.length || 0})
+                      </h4>
+                      <span className="text-[10px] text-muted-foreground font-bold">
+                        Sorted newest first
+                      </span>
+                    </div>
+
+                    {selectedOrder.trackingHistory && selectedOrder.trackingHistory.length > 0 ? (
+                      <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                        {[...selectedOrder.trackingHistory].reverse().map((chk, idx) => (
+                          <div
+                            key={chk._id || idx}
+                            className="flex items-start justify-between gap-3 p-3 rounded-xl bg-card border border-border/70 text-xs hover:border-border transition"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-extrabold uppercase">
+                                  {chk.status || "Checkpoint"}
+                                </span>
+                                {chk.location && (
+                                  <span className="font-bold text-foreground flex items-center gap-1">
+                                    <MapPin className="h-3 w-3 text-primary shrink-0" />
+                                    {chk.location}
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-muted-foreground">
+                                  {chk.date} {chk.time}
+                                </span>
+                              </div>
+                              <p className="text-muted-foreground leading-snug">
+                                {chk.description}
+                              </p>
+                            </div>
+
+                            {chk._id && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTrackingCheckpoint(chk._id)}
+                                className="p-1 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition cursor-pointer shrink-0"
+                                title="Delete Checkpoint"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic text-center py-3 bg-muted/20 rounded-xl border border-dashed border-border">
+                        No manual tracking checkpoints logged yet.
+                      </p>
                     )}
                   </div>
                 </div>

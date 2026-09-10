@@ -12,7 +12,7 @@ export const ageCategories = [
   { id: "1 - 4 Years", name: "1 - 4 Years", image: age14 },
 ];
 
-export const ageGroups = ["0 - 3 Months", "3 - 6 Months", "6 - 12 Months", "1 - 2 Years", "2+ Years"];
+export const ageGroups = ["0 - 3 Months", "3 - 6 Months", "6 - 12 Months", "1 - 4 Years"];
 
 export const videoProducts = [];
 export const happyCustomers = [];

@@ -457,25 +457,224 @@ export const adminService = {
     return { order: newOrder, isLiveBackend: false };
   },
 
-  async updateOrderStatus(id, { orderStatus, paymentStatus, cancelledReason }) {
+  // Public order tracking (by Order Number + Email / Phone)
+  async trackOrderPublic({ orderNumber, contact }) {
+    const cleanOrdNum = (orderNumber || "").trim();
+    const cleanContact = (contact || "").trim();
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/orders/track`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderNumber: cleanOrdNum, contact: cleanContact }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to retrieve order tracking details.");
+      }
+      return { order: data.data?.order, isLiveBackend: true };
+    } catch (err) {
+      // Local fallback lookup
+      const orders = getLocalOrders();
+      const matched = orders.find(
+        (o) =>
+          String(o._id || "").toLowerCase() === cleanOrdNum.toLowerCase() ||
+          String(o.orderNumber || "").toLowerCase() === cleanOrdNum.toLowerCase()
+      );
+
+      if (!matched) {
+        throw new Error(err.message || `No order found with number "${cleanOrdNum}".`);
+      }
+
+      // Verify contact
+      const contactLower = cleanContact.toLowerCase();
+      const contactDigits = cleanContact.replace(/\D/g, "");
+      const orderEmail = (matched.shippingAddress?.email || matched.user?.email || "").toLowerCase();
+      const orderPhoneDigits = (matched.shippingAddress?.phone || matched.user?.phone || "").replace(/\D/g, "");
+
+      const emailMatch = contactLower.includes("@") && (orderEmail === contactLower || orderEmail.includes(contactLower));
+      const phoneMatch = contactDigits.length >= 6 && orderPhoneDigits.endsWith(contactDigits.slice(-6));
+
+      if (!emailMatch && !phoneMatch) {
+        throw new Error("The Email or Mobile Number provided does not match this order's details.");
+      }
+
+      return { order: matched, isLiveBackend: false };
+    }
+  },
+
+  async updateOrderStatus(id, { orderStatus, paymentStatus, cancelledReason, customMessage, sendNotification = true }) {
     try {
       const res = await apiRequest(`/admin/orders/${id}/status`, {
         method: "PUT",
-        body: JSON.stringify({ orderStatus, paymentStatus, cancelledReason }),
+        body: JSON.stringify({ orderStatus, paymentStatus, cancelledReason, customMessage, sendNotification }),
       });
-      return { order: res.data.order, isLiveBackend: true };
+      const updated = res.data?.order;
+      if (updated) {
+        const orders = getLocalOrders();
+        const index = orders.findIndex((o) => String(o._id) === String(id) || o.orderNumber === id);
+        if (index !== -1) {
+          orders[index] = { ...orders[index], ...updated };
+          saveLocalOrders(orders);
+        }
+      }
+      return { order: updated, isLiveBackend: true };
     } catch {
       const orders = getLocalOrders();
       const index = orders.findIndex((o) => String(o._id) === String(id) || o.orderNumber === id);
       if (index !== -1) {
+        const now = new Date();
+        const newHist = orders[index].trackingHistory ? [...orders[index].trackingHistory] : [];
+        if (orderStatus && orderStatus !== orders[index].orderStatus) {
+          newHist.push({
+            _id: "chk_" + Date.now(),
+            status: orderStatus,
+            location: "Local Hub",
+            description: `Status updated to ${orderStatus}`,
+            date: now.toISOString().split("T")[0],
+            time: now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+            timestamp: now.toISOString(),
+            updatedBy: "Admin",
+          });
+        }
+
         orders[index] = {
           ...orders[index],
           ...(orderStatus ? { orderStatus } : {}),
           ...(paymentStatus ? { paymentStatus } : {}),
           ...(cancelledReason ? { cancelledReason } : {}),
-          ...(orderStatus === "Shipped" ? { shippedAt: new Date().toISOString() } : {}),
-          ...(orderStatus === "Delivered" ? { deliveredAt: new Date().toISOString(), paymentStatus: "Paid" } : {}),
+          ...(orderStatus === "Packed" && !orders[index].packedAt ? { packedAt: now.toISOString() } : {}),
+          ...(orderStatus === "Shipped" && !orders[index].shippedAt ? { shippedAt: now.toISOString(), shippingDate: now.toISOString() } : {}),
+          ...(orderStatus === "Out for Delivery" && !orders[index].outForDeliveryAt ? { outForDeliveryAt: now.toISOString() } : {}),
+          ...(orderStatus === "Delivered" ? { deliveredAt: now.toISOString(), paymentStatus: "Paid" } : {}),
+          trackingHistory: newHist,
         };
+        saveLocalOrders(orders);
+        return { order: orders[index], isLiveBackend: false };
+      }
+      throw new Error("Order not found");
+    }
+  },
+
+  async updateOrderCourier(id, courierData) {
+    try {
+      const res = await apiRequest(`/admin/orders/${id}/courier`, {
+        method: "PUT",
+        body: JSON.stringify(courierData),
+      });
+      const updated = res.data?.order;
+      if (updated) {
+        const orders = getLocalOrders();
+        const index = orders.findIndex((o) => String(o._id) === String(id) || o.orderNumber === id);
+        if (index !== -1) {
+          orders[index] = { ...orders[index], ...updated };
+          saveLocalOrders(orders);
+        }
+      }
+      return { order: updated, isLiveBackend: true };
+    } catch {
+      const orders = getLocalOrders();
+      const index = orders.findIndex((o) => String(o._id) === String(id) || o.orderNumber === id);
+      if (index !== -1) {
+        const now = new Date();
+        const newHist = orders[index].trackingHistory ? [...orders[index].trackingHistory] : [];
+        if (courierData.newCheckpointDescription) {
+          newHist.push({
+            _id: "chk_" + Date.now(),
+            status: courierData.orderStatus || orders[index].orderStatus || "In Transit",
+            location: courierData.newCheckpointLocation || "",
+            description: courierData.newCheckpointDescription,
+            date: now.toISOString().split("T")[0],
+            time: now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+            timestamp: now.toISOString(),
+            updatedBy: "Admin",
+          });
+        }
+
+        orders[index] = {
+          ...orders[index],
+          courierName: courierData.courierName || orders[index].courierName,
+          trackingNumber: courierData.trackingNumber || orders[index].trackingNumber,
+          trackingUrl: courierData.trackingUrl || orders[index].trackingUrl,
+          shippingDate: courierData.shippingDate || orders[index].shippingDate,
+          expectedDeliveryDate: courierData.expectedDeliveryDate || orders[index].expectedDeliveryDate,
+          ...(courierData.orderStatus ? { orderStatus: courierData.orderStatus } : {}),
+          trackingHistory: newHist,
+        };
+        saveLocalOrders(orders);
+        return { order: orders[index], isLiveBackend: false };
+      }
+      throw new Error("Order not found");
+    }
+  },
+
+  async addTrackingUpdate(id, trackingData) {
+    try {
+      const res = await apiRequest(`/admin/orders/${id}/tracking`, {
+        method: "POST",
+        body: JSON.stringify(trackingData),
+      });
+      const updated = res.data?.order;
+      if (updated) {
+        const orders = getLocalOrders();
+        const index = orders.findIndex((o) => String(o._id) === String(id) || o.orderNumber === id);
+        if (index !== -1) {
+          orders[index] = { ...orders[index], ...updated };
+          saveLocalOrders(orders);
+        }
+      }
+      return { order: updated, isLiveBackend: true };
+    } catch {
+      const orders = getLocalOrders();
+      const index = orders.findIndex((o) => String(o._id) === String(id) || o.orderNumber === id);
+      if (index !== -1) {
+        const now = new Date();
+        const entry = {
+          _id: "chk_" + Date.now(),
+          status: trackingData.status || orders[index].orderStatus || "In Transit",
+          location: trackingData.location || "",
+          description: trackingData.description,
+          date: trackingData.date || now.toISOString().split("T")[0],
+          time: trackingData.time || now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+          timestamp: trackingData.date && trackingData.time ? `${trackingData.date}T${trackingData.time}` : now.toISOString(),
+          updatedBy: "Admin",
+        };
+
+        const newHist = [...(orders[index].trackingHistory || []), entry];
+        orders[index] = {
+          ...orders[index],
+          ...(trackingData.updateOrderStatusTo ? { orderStatus: trackingData.updateOrderStatusTo } : {}),
+          trackingHistory: newHist,
+        };
+        saveLocalOrders(orders);
+        return { order: orders[index], isLiveBackend: false };
+      }
+      throw new Error("Order not found");
+    }
+  },
+
+  async deleteTrackingUpdate(id, updateId) {
+    try {
+      const res = await apiRequest(`/admin/orders/${id}/tracking/${updateId}`, {
+        method: "DELETE",
+      });
+      const updated = res.data?.order;
+      if (updated) {
+        const orders = getLocalOrders();
+        const index = orders.findIndex((o) => String(o._id) === String(id) || o.orderNumber === id);
+        if (index !== -1) {
+          orders[index] = { ...orders[index], ...updated };
+          saveLocalOrders(orders);
+        }
+      }
+      return { order: updated, isLiveBackend: true };
+    } catch {
+      const orders = getLocalOrders();
+      const index = orders.findIndex((o) => String(o._id) === String(id) || o.orderNumber === id);
+      if (index !== -1) {
+        orders[index].trackingHistory = (orders[index].trackingHistory || []).filter(
+          (h) => String(h._id) !== String(updateId)
+        );
         saveLocalOrders(orders);
         return { order: orders[index], isLiveBackend: false };
       }
@@ -1094,13 +1293,32 @@ export const adminService = {
     }
   },
 
-  // 13. Site Settings (COD toggle, etc.)
+  // 13. Site Settings (COD toggle, Standard Size Chart toggle, etc.)
   async getSettings() {
     try {
       const res = await apiRequest("/settings");
-      const settings = res.data || { codEnabled: true };
+      const localSizeChart = localStorage.getItem("little_sunbeam_size_chart_enabled");
+      const localCod = localStorage.getItem("little_sunbeam_cod_enabled");
+      const standardSizeChartEnabled =
+        res.data && typeof res.data.standardSizeChartEnabled === "boolean"
+          ? res.data.standardSizeChartEnabled
+          : localSizeChart !== null
+            ? localSizeChart === "true"
+            : true;
+      const codEnabled =
+        res.data && typeof res.data.codEnabled === "boolean"
+          ? res.data.codEnabled
+          : localCod !== null
+            ? localCod === "true"
+            : true;
+      const settings = {
+        codEnabled,
+        standardSizeChartEnabled,
+      };
       try {
         localStorage.setItem("little_sunbeam_settings", JSON.stringify(settings));
+        localStorage.setItem("little_sunbeam_size_chart_enabled", String(standardSizeChartEnabled));
+        localStorage.setItem("little_sunbeam_cod_enabled", String(codEnabled));
       } catch { }
       return { ...settings, isLiveBackend: true };
     } catch {
@@ -1108,7 +1326,13 @@ export const adminService = {
         const stored = localStorage.getItem("little_sunbeam_settings");
         if (stored) return { ...JSON.parse(stored), isLiveBackend: false };
       } catch { }
-      return { codEnabled: true, isLiveBackend: false };
+      const localSizeChart = localStorage.getItem("little_sunbeam_size_chart_enabled");
+      const localCod = localStorage.getItem("little_sunbeam_cod_enabled");
+      return {
+        codEnabled: localCod !== null ? localCod === "true" : true,
+        standardSizeChartEnabled: localSizeChart !== null ? localSizeChart === "true" : true,
+        isLiveBackend: false,
+      };
     }
   },
 
@@ -1118,11 +1342,26 @@ export const adminService = {
         method: "PUT",
         body: JSON.stringify(settings),
       });
-      const updated = res.data || settings;
+      const updated = {
+        ...(res.data || {}),
+        ...settings,
+      };
       try {
         localStorage.setItem("little_sunbeam_settings", JSON.stringify(updated));
+        if (typeof settings.standardSizeChartEnabled === "boolean") {
+          localStorage.setItem("little_sunbeam_size_chart_enabled", String(settings.standardSizeChartEnabled));
+        }
+        if (typeof settings.codEnabled === "boolean") {
+          localStorage.setItem("little_sunbeam_cod_enabled", String(settings.codEnabled));
+        }
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("settings_updated", { detail: updated }));
+          if (typeof settings.standardSizeChartEnabled === "boolean") {
+            window.dispatchEvent(new CustomEvent("size_chart_updated", { detail: settings.standardSizeChartEnabled }));
+          }
+          if (typeof settings.codEnabled === "boolean") {
+            window.dispatchEvent(new CustomEvent("cod_updated", { detail: settings.codEnabled }));
+          }
         }
       } catch { }
       return { ...updated, isLiveBackend: true };
@@ -1131,8 +1370,20 @@ export const adminService = {
         const existing = JSON.parse(localStorage.getItem("little_sunbeam_settings") || "{}");
         const merged = { ...existing, ...settings };
         localStorage.setItem("little_sunbeam_settings", JSON.stringify(merged));
+        if (typeof settings.standardSizeChartEnabled === "boolean") {
+          localStorage.setItem("little_sunbeam_size_chart_enabled", String(settings.standardSizeChartEnabled));
+        }
+        if (typeof settings.codEnabled === "boolean") {
+          localStorage.setItem("little_sunbeam_cod_enabled", String(settings.codEnabled));
+        }
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("settings_updated", { detail: merged }));
+          if (typeof settings.standardSizeChartEnabled === "boolean") {
+            window.dispatchEvent(new CustomEvent("size_chart_updated", { detail: settings.standardSizeChartEnabled }));
+          }
+          if (typeof settings.codEnabled === "boolean") {
+            window.dispatchEvent(new CustomEvent("cod_updated", { detail: settings.codEnabled }));
+          }
         }
         return { ...merged, isLiveBackend: false };
       } catch {

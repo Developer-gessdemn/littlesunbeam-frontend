@@ -52,7 +52,7 @@ export default function QuickViewModal({ product, open, onClose }) {
     : [{ name: "Default", hex: "#E5E7EB" }];
   const sizes = (product && product.sizes && product.sizes.length > 0)
     ? product.sizes
-    : ["0-3M", "3-6M", "6-12M", "1-2Y", "2-3Y"];
+    : ["0 - 3 Months", "3 - 6 Months", "6 - 12 Months", "1 - 4 Years"];
 
   // ALL hooks must be called unconditionally before any early return
   const [selectedImgIndex, setSelectedImgIndex] = useState(0);

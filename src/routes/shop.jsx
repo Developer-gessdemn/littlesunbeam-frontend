@@ -114,9 +114,28 @@ function Shop() {
 
   useEffect(() => {
     if (search.age) {
-      setSelectedAges((prev) => (prev.includes(search.age) ? prev : [search.age]));
+      let ageVal = search.age;
+      if (["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "2 - 4 Years"].includes(ageVal)) {
+        ageVal = "1 - 4 Years";
+      }
+      setSelectedAges((prev) => (prev.includes(ageVal) ? prev : [ageVal]));
     }
   }, [search.age]);
+
+  const displayedAgeGroups = useMemo(() => {
+    const list = [...ageGroups];
+    (products || []).forEach((p) => {
+      const ag = p.ageGroup || p.age;
+      if (
+        ag &&
+        !list.includes(ag) &&
+        !["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "2 - 4 Years"].includes(ag)
+      ) {
+        list.push(ag);
+      }
+    });
+    return list;
+  }, [products]);
 
   const toggle = (list, setList, value) => {
     const valLower = value.toLowerCase();
@@ -226,7 +245,23 @@ function Shop() {
       // 3. Age Match
       const ageMatch =
         selectedAges.length === 0 ||
-        selectedAges.some((a) => (p.ageGroup || p.age || "").toLowerCase().includes(a.toLowerCase()));
+        selectedAges.some((a) => {
+          const prodAge = (p.ageGroup || p.age || "").toLowerCase();
+          const target = a.toLowerCase();
+          if (target === "1 - 4 years") {
+            if (
+              prodAge.includes("1 - 2") ||
+              prodAge.includes("2 - 3") ||
+              prodAge.includes("3 - 4") ||
+              prodAge.includes("1 - 4") ||
+              prodAge.includes("2 - 4") ||
+              prodAge.includes("2+")
+            ) {
+              return true;
+            }
+          }
+          return prodAge.includes(target);
+        });
 
       // 4. Print Match
       const printMatch =
@@ -348,7 +383,7 @@ function Shop() {
 
       {/* Age Groups */}
       <FilterGroup title="Age">
-        {ageGroups.map((a) => (
+        {displayedAgeGroups.map((a) => (
           <CheckRow
             key={a}
             label={a}

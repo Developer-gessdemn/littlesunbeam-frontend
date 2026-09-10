@@ -23,7 +23,7 @@ export function getInstagramEmbedUrl(url) {
 }
 
 export function getApiBaseUrl() {
-  const raw = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").trim();
+  const raw = (import.meta.env.VITE_API_URL || "http://localhost:3046/api").trim();
   const cleaned = raw.replace(/\/+$/, "");
   return cleaned.endsWith("/api") ? cleaned : `${cleaned}/api`;
 }

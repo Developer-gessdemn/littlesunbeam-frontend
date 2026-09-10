@@ -21,6 +21,7 @@ import { Route as ShippingPolicyRouteImport } from './routes/shipping-policy'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as SitemapRouteImport } from './routes/sitemap'
 import { Route as TermsConditionsRouteImport } from './routes/terms-conditions'
+import { Route as TrackOrderRouteImport } from './routes/track-order'
 import { Route as ProductProductIdRouteImport } from './routes/product.$productId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -83,6 +84,11 @@ const TermsConditionsRoute = TermsConditionsRouteImport.update({
   path: '/terms-conditions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TrackOrderRoute = TrackOrderRouteImport.update({
+  id: '/track-order',
+  path: '/track-order',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductProductIdRoute = ProductProductIdRouteImport.update({
   id: '/product/$productId',
   path: '/product/$productId',
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/shop': typeof ShopRoute
   '/sitemap': typeof SitemapRoute
   '/terms-conditions': typeof TermsConditionsRoute
+  '/track-order': typeof TrackOrderRoute
   '/product/$productId': typeof ProductProductIdRoute
 }
 export interface FileRoutesByTo {
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/shop': typeof ShopRoute
   '/sitemap': typeof SitemapRoute
   '/terms-conditions': typeof TermsConditionsRoute
+  '/track-order': typeof TrackOrderRoute
   '/product/$productId': typeof ProductProductIdRoute
 }
 export interface FileRoutesById {
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/shop': typeof ShopRoute
   '/sitemap': typeof SitemapRoute
   '/terms-conditions': typeof TermsConditionsRoute
+  '/track-order': typeof TrackOrderRoute
   '/product/$productId': typeof ProductProductIdRoute
 }
 export interface FileRouteTypes {
@@ -150,6 +159,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/sitemap'
     | '/terms-conditions'
+    | '/track-order'
     | '/product/$productId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/sitemap'
     | '/terms-conditions'
+    | '/track-order'
     | '/product/$productId'
   id:
     | '__root__'
@@ -180,6 +191,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/sitemap'
     | '/terms-conditions'
+    | '/track-order'
     | '/product/$productId'
   fileRoutesById: FileRoutesById
 }
@@ -196,6 +208,7 @@ export interface RootRouteChildren {
   ShopRoute: typeof ShopRoute
   SitemapRoute: typeof SitemapRoute
   TermsConditionsRoute: typeof TermsConditionsRoute
+  TrackOrderRoute: typeof TrackOrderRoute
   ProductProductIdRoute: typeof ProductProductIdRoute
 }
 
@@ -285,6 +298,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsConditionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/track-order': {
+      id: '/track-order'
+      path: '/track-order'
+      fullPath: '/track-order'
+      preLoaderRoute: typeof TrackOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/product/$productId': {
       id: '/product/$productId'
       path: '/product/$productId'
@@ -308,6 +328,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShopRoute: ShopRoute,
   SitemapRoute: SitemapRoute,
   TermsConditionsRoute: TermsConditionsRoute,
+  TrackOrderRoute: TrackOrderRoute,
   ProductProductIdRoute: ProductProductIdRoute,
 }
 export const routeTree = rootRouteImport

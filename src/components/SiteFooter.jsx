@@ -153,6 +153,11 @@ export default function SiteFooter() {
               </Link>
             </li>
             <li>
+              <Link to="/track-order" className="hover:text-primary transition-colors font-bold text-amber-700 dark:text-amber-400">
+                Track Your Order
+              </Link>
+            </li>
+            <li>
               <Link to="/contact" className="hover:text-primary transition-colors font-medium">
                 Contact Us
               </Link>

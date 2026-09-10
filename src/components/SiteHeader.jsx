@@ -19,6 +19,7 @@ import {
   Grid,
   Layers,
   ArrowRight,
+  Truck,
 } from "lucide-react";
 import logo from "@/assets/LSB_Logo1.jpg";
 import WishlistDrawer from "@/components/WishlistDrawer.jsx";
@@ -558,6 +559,15 @@ export default function SiteHeader() {
                     </Link>
 
                     <Link
+                      to="/track-order"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-foreground hover:bg-muted transition text-left"
+                    >
+                      <Truck className="h-4 w-4 text-amber-600" />
+                      <span>Track Order</span>
+                    </Link>
+
+                    <Link
                       to="/shop"
                       onClick={() => setUserDropdownOpen(false)}
                       className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-foreground hover:bg-muted transition"
@@ -948,6 +958,18 @@ export default function SiteHeader() {
                 >
                   <Grid className="h-4 w-4 text-primary" />
                   <span>All Essentials</span>
+                </Link>
+              </li>
+
+              {/* Track Order shortcut */}
+              <li className="border-b border-border/60 pb-2">
+                <Link
+                  to="/track-order"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 text-amber-800 dark:text-amber-400 hover:text-primary transition-colors py-1 font-bold"
+                >
+                  <Truck className="h-4 w-4 text-amber-600" />
+                  <span>Track Order</span>
                 </Link>
               </li>
 
