@@ -356,6 +356,7 @@ function CheckoutPage() {
         paymentMethod: backendPaymentMethod,
         subtotal,
         shippingCharge: shippingFee,
+        tax: 0,
         totalAmount: total,
         notes: "",
       };
