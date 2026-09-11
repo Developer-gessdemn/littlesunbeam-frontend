@@ -333,12 +333,12 @@ export default function QuickViewModal({ product, open, onClose }) {
               <div className="flex flex-col">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Price</span>
                 <span className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
-                  ₹{product.price}.00
+                  ₹{Number(product.price).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </span>
               </div>
               {product.mrp && product.mrp > product.price && (
                 <div className="mb-1 text-xs sm:text-sm font-bold text-muted-foreground line-through">
-                  ₹{product.mrp}.00
+                  ₹{Number(product.mrp).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </div>
               )}
             </div>

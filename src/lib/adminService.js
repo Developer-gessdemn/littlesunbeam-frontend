@@ -119,6 +119,13 @@ function saveLocalProducts(products) {
     localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(products));
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("products_updated", { detail: products }));
+      try {
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("little_sunbeam_broadcast_channel");
+          bc.postMessage({ type: "PRODUCTS_UPDATED", products });
+          bc.close();
+        }
+      } catch { }
     }
   } catch { }
 }
@@ -136,6 +143,18 @@ function getLocalOrders() {
 function saveLocalOrders(orders) {
   localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders));
 }
+
+// One-time migration: clear stale product cache that may have wrong prices (e.g., price=1, mrp=2)
+// so that correct prices are fetched from the live backend on next load.
+const ADMIN_PRODUCT_CACHE_MIGRATION_KEY = "little_sunbeam_admin_product_cache_migration_v2";
+(function clearStaleAdminProductCache() {
+  try {
+    if (typeof localStorage === "undefined") return;
+    if (localStorage.getItem(ADMIN_PRODUCT_CACHE_MIGRATION_KEY)) return; // already ran
+    localStorage.removeItem(LOCAL_PRODUCTS_KEY);
+    localStorage.setItem(ADMIN_PRODUCT_CACHE_MIGRATION_KEY, "done");
+  } catch { }
+})();
 
 // --- ADMIN API SERVICE ---
 export const adminService = {
@@ -246,17 +265,64 @@ export const adminService = {
   },
 
   // 3. Products
+
+  // Internal helper: resolve correct price/mrp for a product by checking variant-level
+  // prices when root-level price appears to be a wrong placeholder value.
+  _resolveProductPricing(p) {
+    if (!p) return p;
+
+    let bestVariantPrice = 0;
+    let bestVariantMrp = 0;
+
+    // Check flattened variants array
+    if (Array.isArray(p.variants)) {
+      for (const v of p.variants) {
+        const vp = Number(v.price);
+        const vm = Number(v.mrp);
+        if (!isNaN(vp) && vp > bestVariantPrice) bestVariantPrice = vp;
+        if (!isNaN(vm) && vm > bestVariantMrp) bestVariantMrp = vm;
+      }
+    }
+    // Check colorVariants inventory
+    if (Array.isArray(p.colorVariants)) {
+      for (const cv of p.colorVariants) {
+        if (Array.isArray(cv.inventory)) {
+          for (const inv of cv.inventory) {
+            const ip = Number(inv.price);
+            const im = Number(inv.mrp);
+            if (!isNaN(ip) && ip > bestVariantPrice) bestVariantPrice = ip;
+            if (!isNaN(im) && im > bestVariantMrp) bestVariantMrp = im;
+          }
+        }
+      }
+    }
+
+    const rootPrice = Number(p.price) || 0;
+    const rootMrp = Number(p.mrp) || 0;
+
+    // The root price is authoritative. Only fallback to variant price if rootPrice is 0 or missing.
+    const resolvedPrice = rootPrice > 0 ? rootPrice : (bestVariantPrice > 0 ? bestVariantPrice : 0);
+    const resolvedMrp = rootMrp > 0 ? rootMrp : (bestVariantMrp > 0 ? bestVariantMrp : resolvedPrice);
+
+    if (resolvedPrice !== rootPrice || resolvedMrp !== rootMrp) {
+      return { ...p, price: resolvedPrice, mrp: resolvedMrp };
+    }
+    return p;
+  },
+
   async getProducts(params = {}) {
     try {
       const query = new URLSearchParams(params).toString();
       const res = await apiRequest(`/products?${query}`);
-      const fetchedProducts = res.data.products || [];
+      const rawProducts = res.data.products || [];
+      // Resolve correct pricing for each product before returning/caching
+      const fetchedProducts = rawProducts.map((p) => this._resolveProductPricing(p));
       if (fetchedProducts.length > 0) {
         saveLocalProducts(fetchedProducts);
       }
       return { products: fetchedProducts, total: res.data.pagination?.total, isLiveBackend: true };
     } catch {
-      let list = getLocalProducts();
+      let list = getLocalProducts().map((p) => this._resolveProductPricing(p));
       if (params.search) {
         const s = params.search.toLowerCase();
         list = list.filter(
@@ -272,6 +338,7 @@ export const adminService = {
       return { products: list, total: list.length, isLiveBackend: false };
     }
   },
+
 
   async createProduct(productData) {
     try {
@@ -311,18 +378,19 @@ export const adminService = {
       });
       const products = getLocalProducts();
       const index = products.findIndex((p) => String(p._id) === String(id) || String(p.id) === String(id));
-      if (index !== -1 && res.data?.product) {
-        products[index] = res.data.product;
+      const resolvedProduct = res.data?.product ? this._resolveProductPricing(res.data.product) : null;
+      if (index !== -1 && resolvedProduct) {
+        products[index] = resolvedProduct;
         saveLocalProducts(products);
       }
-      return { product: res.data.product, isLiveBackend: true };
+      return { product: resolvedProduct, isLiveBackend: true };
     } catch (err) {
       const { token } = getAdminAuth();
       if (token && token.startsWith("demo_jwt")) {
         const products = getLocalProducts();
         const index = products.findIndex((p) => String(p._id) === String(id) || String(p.id) === String(id));
         if (index !== -1) {
-          products[index] = { ...products[index], ...updates };
+          products[index] = this._resolveProductPricing({ ...products[index], ...updates });
           saveLocalProducts(products);
           return { product: products[index], isLiveBackend: false };
         }
@@ -331,6 +399,7 @@ export const adminService = {
       throw err;
     }
   },
+
 
   async deleteProduct(id) {
     try {

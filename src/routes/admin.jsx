@@ -1234,6 +1234,36 @@ function AdminPage() {
       initialAgeGroup = "1 - 4 Years";
     }
 
+    // Resolve correct price/mrp: if variant prices are higher than root price,
+    // the root price is likely a stale/wrong placeholder — use the variant price instead.
+    let resolvedRootPrice = Number(p.price) || 0;
+    let resolvedRootMrp = Number(p.mrp) || 0;
+    let bestVariantPrice = 0;
+    let bestVariantMrp = 0;
+    if (Array.isArray(p.colorVariants)) {
+      for (const cv of p.colorVariants) {
+        if (Array.isArray(cv.inventory)) {
+          for (const inv of cv.inventory) {
+            const ip = Number(inv.price);
+            const im = Number(inv.mrp);
+            if (!isNaN(ip) && ip > bestVariantPrice) bestVariantPrice = ip;
+            if (!isNaN(im) && im > bestVariantMrp) bestVariantMrp = im;
+          }
+        }
+      }
+    }
+    if (Array.isArray(p.variants)) {
+      for (const v of p.variants) {
+        const vp = Number(v.price);
+        const vm = Number(v.mrp);
+        if (!isNaN(vp) && vp > bestVariantPrice) bestVariantPrice = vp;
+        if (!isNaN(vm) && vm > bestVariantMrp) bestVariantMrp = vm;
+      }
+    }
+    if (resolvedRootPrice <= 0 && bestVariantPrice > 0) resolvedRootPrice = bestVariantPrice;
+    if (resolvedRootMrp <= 0 && bestVariantMrp > 0) resolvedRootMrp = bestVariantMrp;
+    if (resolvedRootMrp === 0 && resolvedRootPrice > 0) resolvedRootMrp = resolvedRootPrice;
+
     setProductForm({
       name: p.name || "",
       sku: p.sku || "",
@@ -1253,10 +1283,10 @@ function AdminPage() {
       neckType: p.neckType || "",
       fitType: p.fitType || "",
       season: p.season || "",
-      price: p.price !== undefined ? p.price : "",
-      mrp: p.mrp !== undefined ? p.mrp : (p.price || ""),
+      price: resolvedRootPrice > 0 ? resolvedRootPrice : (p.price !== undefined ? p.price : ""),
+      mrp: resolvedRootMrp > 0 ? resolvedRootMrp : (p.mrp !== undefined ? p.mrp : (p.price || "")),
       manufacturingCost: p.manufacturingCost !== undefined ? p.manufacturingCost : "",
-      discount: p.discount || calcDiscount(p.price, p.mrp || p.price),
+      discount: calcDiscount(resolvedRootPrice || p.price, resolvedRootMrp || p.mrp || p.price),
       gst: p.gst !== undefined ? p.gst : 5,
       stock: p.stock !== undefined ? p.stock : 0,
       lowStockThreshold: p.lowStockThreshold !== undefined ? p.lowStockThreshold : 10,
@@ -1391,7 +1421,14 @@ function AdminPage() {
         videos: Array.isArray(productForm.videos)
           ? productForm.videos.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean)
           : (productForm.video ? [productForm.video.trim()] : []),
-        colorVariants: productForm.colorVariants,
+        colorVariants: (productForm.colorVariants || []).map((cv) => ({
+          ...cv,
+          inventory: (cv.inventory || []).map((inv) => ({
+            ...inv,
+            price: Number(productForm.price),
+            mrp: Number(productForm.mrp || productForm.price),
+          })),
+        })),
         prints: Array.isArray(productForm.prints) ? productForm.prints : [],
         print: (productForm.prints && productForm.prints.length > 0 ? String(productForm.prints[0]) : productForm.print) || "",
         sleeveType: productForm.sleeveType ? productForm.sleeveType.trim() : "",
@@ -6154,10 +6191,18 @@ function AdminPage() {
                                   onChange={(e) => {
                                     const newPrice = e.target.value;
                                     const newMrp = productForm.mrp || newPrice;
+                                    const updatedVariants = (productForm.colorVariants || []).map((cv) => ({
+                                      ...cv,
+                                      inventory: (cv.inventory || []).map((inv) => ({
+                                        ...inv,
+                                        price: newPrice !== "" ? Number(newPrice) : "",
+                                      })),
+                                    }));
                                     setProductForm({
                                       ...productForm,
                                       price: newPrice,
                                       discount: calcDiscount(newPrice, newMrp),
+                                      colorVariants: updatedVariants,
                                     });
                                   }}
                                   placeholder="599"
@@ -6176,10 +6221,18 @@ function AdminPage() {
                                   value={productForm.mrp}
                                   onChange={(e) => {
                                     const newMrp = e.target.value;
+                                    const updatedVariants = (productForm.colorVariants || []).map((cv) => ({
+                                      ...cv,
+                                      inventory: (cv.inventory || []).map((inv) => ({
+                                        ...inv,
+                                        mrp: newMrp !== "" ? Number(newMrp) : "",
+                                      })),
+                                    }));
                                     setProductForm({
                                       ...productForm,
                                       mrp: newMrp,
                                       discount: calcDiscount(productForm.price, newMrp),
+                                      colorVariants: updatedVariants,
                                     });
                                   }}
                                   placeholder="799"

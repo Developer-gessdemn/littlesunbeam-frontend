@@ -62,10 +62,10 @@ function ProductDetailsPage() {
     (p) => String(p._id || p.id) === String(productId) || p.slug === productId
   );
 
-  // If not found in list, attempt direct API fetch
+  // Always fetch fresh product data on mount / productId change to bypass cache
   useEffect(() => {
-    if (!productFromList && productId) {
-      fetch(`${API_BASE_URL}/products/${productId}`)
+    if (productId) {
+      fetch(`${API_BASE_URL}/products/${productId}?_t=${Date.now()}`, { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data?.data?.product) {
@@ -74,9 +74,9 @@ function ProductDetailsPage() {
         })
         .catch(() => { });
     }
-  }, [productId, productFromList]);
+  }, [productId]);
 
-  const product = liveProduct || productFromList || (products && products.find((p) => String(p._id || p.id) === String(productId)));
+  const product = productFromList || liveProduct || (products && products.find((p) => String(p._id || p.id) === String(productId)));
 
   // Size Chart & Size Guide visibility logic
   // Relies entirely on ShopContext's standardSizeChartEnabled which:

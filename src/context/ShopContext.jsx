@@ -48,16 +48,37 @@ export const normalizeProduct = (p) => {
     });
   }
 
-  const priceNum = parsePrice(
-    p.price,
-    p.sellingPrice,
-    p.variantPrice,
-    p.offerPrice,
-    p.colorVariants?.[0]?.inventory?.[0]?.price,
-    p.variants?.[0]?.price,
-    p.mrp
-  );
-  const mrpNum = parsePrice(p.mrp, p.originalPrice, priceNum);
+  // Gather the best price from all flattened variants (the ground truth for per-size prices)
+  let bestVariantPrice = 0;
+  let bestVariantMrp = 0;
+  if (Array.isArray(p.variants) && p.variants.length > 0) {
+    for (const v of p.variants) {
+      const vp = Number(v.price);
+      const vm = Number(v.mrp);
+      if (!isNaN(vp) && vp > bestVariantPrice) bestVariantPrice = vp;
+      if (!isNaN(vm) && vm > bestVariantMrp) bestVariantMrp = vm;
+    }
+  }
+  // Also check colorVariants inventory for highest price
+  if (Array.isArray(p.colorVariants) && p.colorVariants.length > 0) {
+    for (const cv of p.colorVariants) {
+      if (Array.isArray(cv.inventory)) {
+        for (const inv of cv.inventory) {
+          const ip = Number(inv.price);
+          const im = Number(inv.mrp);
+          if (!isNaN(ip) && ip > bestVariantPrice) bestVariantPrice = ip;
+          if (!isNaN(im) && im > bestVariantMrp) bestVariantMrp = im;
+        }
+      }
+    }
+  }
+
+  // Compute root-level price. The explicit product price is authoritative.
+  const rootPrice = parsePrice(p.price, p.sellingPrice, p.variantPrice, p.offerPrice);
+  const priceNum = rootPrice > 0 ? rootPrice : (bestVariantPrice > 0 ? bestVariantPrice : 0);
+
+  const rootMrp = parsePrice(p.mrp, p.originalPrice);
+  const mrpNum = rootMrp > 0 ? rootMrp : (bestVariantMrp > 0 ? bestVariantMrp : priceNum);
   const discountNum = p.discount !== undefined && !isNaN(Number(p.discount)) ? Number(p.discount) : (mrpNum > priceNum ? Math.round(((mrpNum - priceNum) / mrpNum) * 100) : 0);
   const stockNum = Number(p.stock !== undefined ? p.stock : 50);
   const threshold = Number(p.lowStockThreshold || 10);
@@ -241,6 +262,18 @@ const cleanStaleDummyCartData = () => {
   } catch { }
 };
 cleanStaleDummyCartData();
+
+// One-time migration: clear stale product cache so corrected prices from backend are fetched fresh.
+const PRODUCT_CACHE_MIGRATION_KEY = "little_sunbeam_product_cache_migration_v1";
+const clearStaleProductCache = () => {
+  try {
+    if (localStorage.getItem(PRODUCT_CACHE_MIGRATION_KEY)) return; // already ran
+    localStorage.removeItem(LOCAL_PRODUCTS_KEY);
+    localStorage.setItem(PRODUCT_CACHE_MIGRATION_KEY, "done");
+  } catch { }
+};
+clearStaleProductCache();
+
 
 const getInitialProducts = () => {
   try {
@@ -710,7 +743,9 @@ function InnerShopProvider({ children }) {
   const fetchLiveProducts = useCallback(async () => {
     try {
       setLoadingProducts(true);
-      const res = await fetch(`${API_BASE_URL}/products?limit=100`);
+      const res = await fetch(`${API_BASE_URL}/products?limit=100&_t=${Date.now()}`, {
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error("Failed to fetch live products");
       const data = await res.json();
       const rawProducts = data.data?.products || data.products || [];
@@ -815,6 +850,9 @@ function InnerShopProvider({ children }) {
       if (typeof window !== "undefined" && "BroadcastChannel" in window) {
         bc = new BroadcastChannel("little_sunbeam_broadcast_channel");
         bc.onmessage = (event) => {
+          if (event.data?.type === "PRODUCTS_UPDATED") {
+            fetchLiveProducts();
+          }
           if (event.data?.type === "SIZE_CHART_UPDATED" && typeof event.data.standardSizeChartEnabled === "boolean") {
             setSiteSettingsState((prev) => ({ ...prev, standardSizeChartEnabled: event.data.standardSizeChartEnabled }));
           }
@@ -833,6 +871,15 @@ function InnerShopProvider({ children }) {
     window.addEventListener("size_chart_updated", handleSizeChartUpdated);
     window.addEventListener("cod_updated", handleCodUpdated);
     window.addEventListener("storage", (e) => {
+      if (e.key === LOCAL_PRODUCTS_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setProducts(parsed.map(normalizeProduct));
+          }
+        } catch { }
+        fetchLiveProducts();
+      }
       if (e.key === SETTINGS_KEY && e.newValue) {
         try {
           setSiteSettingsState(JSON.parse(e.newValue));

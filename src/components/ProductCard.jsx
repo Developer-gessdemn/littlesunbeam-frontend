@@ -194,11 +194,11 @@ export default function ProductCard({ product }) {
         {/* Price row */}
         <div className="mt-auto flex flex-wrap items-center gap-1 pt-0.5 sm:gap-1.5 sm:pt-1">
           <span className="text-xs font-extrabold text-foreground sm:text-sm md:text-base">
-            ₹{product.price}.00
+            ₹{Number(product.price).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </span>
           {product.mrp && product.mrp > product.price && (
             <span className="text-[9px] text-muted-foreground line-through sm:text-[10px]">
-              ₹{product.mrp}.00
+              ₹{Number(product.mrp).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
             </span>
           )}
           {discount > 0 && (
@@ -207,6 +207,7 @@ export default function ProductCard({ product }) {
             </span>
           )}
         </div>
+
 
         {/* Full-width Add to Cart CTA button */}
         <div className="mt-2 sm:mt-3">
