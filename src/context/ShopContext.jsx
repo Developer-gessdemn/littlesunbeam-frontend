@@ -132,10 +132,16 @@ export const normalizeProduct = (p) => {
     ? Array.from(new Set(normalizedColorVariants.flatMap((cv) => (cv.sizes?.length ? cv.sizes : cv.inventory.map((inv) => inv.size)))))
     : (p.sizes && p.sizes.length > 0 ? p.sizes : ["0 - 3 Months", "3 - 6 Months", "6 - 12 Months", "1 - 4 Years"]);
 
-  const rawAge = p.ageGroup || p.age || "0 - 3 Months";
-  const normalizedAge = ["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "2 - 4 Years"].includes(rawAge)
+  let rawAge = p.ageGroup || p.age || "0 - 3 Months";
+  const hasToddlerSizesOnly =
+    extractedSizes.length > 0 &&
+    extractedSizes.every((s) => /\b(?:1|2|3|4|5)\s*(?:[-–to]+|y|yr|years?)\b/i.test(s));
+  if (hasToddlerSizesOnly) {
+    rawAge = "1 - 4 Years";
+  }
+  const normalizedAge = ["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "2 - 4 Years", "4 - 5 Years"].includes(rawAge)
     ? "1 - 4 Years"
-    : rawAge;
+    : (["Newborn", "NB"].includes(rawAge) ? "0 - 3 Months" : rawAge);
 
   return {
     ...p,

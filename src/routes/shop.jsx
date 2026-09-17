@@ -42,6 +42,141 @@ export const Route = createFileRoute("/shop")({
 
 const MAX_PRICE = 3500;
 
+export const normalizeAgeParam = (val) => {
+  if (!val) return "";
+  const clean = String(val).replace(/\+/g, " ").trim();
+  const cleanLow = clean.toLowerCase();
+  if (
+    cleanLow.includes("0 - 3") ||
+    cleanLow.includes("0-3") ||
+    cleanLow === "newborn" ||
+    cleanLow === "nb" ||
+    cleanLow.includes("0 to 3")
+  ) {
+    return "0 - 3 Months";
+  }
+  if (
+    cleanLow.includes("3 - 6") ||
+    cleanLow.includes("3-6") ||
+    cleanLow.includes("3 to 6")
+  ) {
+    return "3 - 6 Months";
+  }
+  if (
+    cleanLow.includes("6 - 12") ||
+    cleanLow.includes("6-12") ||
+    cleanLow.includes("6 - 9") ||
+    cleanLow.includes("6-9") ||
+    cleanLow.includes("9 - 12") ||
+    cleanLow.includes("9-12") ||
+    cleanLow.includes("6 to 12") ||
+    cleanLow.includes("6 to 9") ||
+    cleanLow.includes("9 to 12")
+  ) {
+    return "6 - 12 Months";
+  }
+  if (
+    cleanLow.includes("1 - 4") ||
+    cleanLow.includes("1-4") ||
+    cleanLow.includes("1 - 2") ||
+    cleanLow.includes("1-2") ||
+    cleanLow.includes("2 - 3") ||
+    cleanLow.includes("2-3") ||
+    cleanLow.includes("3 - 4") ||
+    cleanLow.includes("3-4") ||
+    cleanLow.includes("2 - 4") ||
+    cleanLow.includes("2-4") ||
+    cleanLow.includes("4 - 5") ||
+    cleanLow.includes("4-5") ||
+    cleanLow.includes("1 to 4") ||
+    cleanLow.includes("1 to 2") ||
+    cleanLow.includes("2 to 3") ||
+    cleanLow.includes("3 to 4")
+  ) {
+    return "1 - 4 Years";
+  }
+  return clean;
+};
+
+export const productMatchesAge = (p, targetAge) => {
+  if (!p || !targetAge) return false;
+  const target = String(targetAge).toLowerCase().trim();
+
+  // Gather all potential size / age strings
+  const tokens = new Set();
+  if (p.ageGroup) tokens.add(String(p.ageGroup));
+  if (p.age) tokens.add(String(p.age));
+  if (Array.isArray(p.sizes)) {
+    p.sizes.forEach((s) => s && tokens.add(String(s)));
+  }
+  if (Array.isArray(p.colorVariants)) {
+    p.colorVariants.forEach((cv) => {
+      if (Array.isArray(cv.sizes)) cv.sizes.forEach((s) => s && tokens.add(String(s)));
+      if (Array.isArray(cv.inventory)) cv.inventory.forEach((inv) => inv?.size && tokens.add(String(inv.size)));
+    });
+  }
+  if (Array.isArray(p.variants)) {
+    p.variants.forEach((v) => v?.size && tokens.add(String(v.size)));
+  }
+
+  const allStrings = Array.from(tokens);
+  const hasMatch = (regex) => allStrings.some((s) => regex.test(s));
+
+  if (target.includes("0 - 3") || target.includes("0-3")) {
+    const isExplicit03 =
+      hasMatch(/\b0\s*[-–to]+\s*3\b/i) ||
+      hasMatch(/\b(?:newborn|nb)\b/i);
+    if (isExplicit03) return true;
+
+    // Newborn essentials: swaddles, hospital kits, starter kits, gift boxes
+    const nameCat = `${p.name || ""} ${p.category || ""} ${p.categoryPill || ""} ${p.subCategory || ""}`.toLowerCase();
+    const isNewbornEssential = /swaddle|hospital kit|starter kit|gift box|newborn/i.test(nameCat);
+    const hasToddlerSizes = hasMatch(/\b(?:1|2|3|4|5)\s*(?:[-–to]+|y|yr|years?)\b/i);
+
+    if (isNewbornEssential && !hasToddlerSizes) {
+      if (
+        hasMatch(/\b(?:free size|one size|standard)\b/i) ||
+        /\b0\s*[-–to]+\s*3\b/i.test(p.ageGroup || "") ||
+        /newborn/i.test(p.ageGroup || "") ||
+        allStrings.length === 0
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (target.includes("3 - 6") || target.includes("3-6")) {
+    return hasMatch(/\b3\s*[-–to]+\s*6\b/i);
+  }
+
+  if (target.includes("6 - 12") || target.includes("6-12")) {
+    const has6to12 =
+      hasMatch(/\b6\s*[-–to]+\s*12\b/i) ||
+      hasMatch(/\b6\s*[-–to]+\s*9\b/i) ||
+      hasMatch(/\b9\s*[-–to]+\s*12\b/i);
+    if (has6to12) return true;
+
+    const isTowel = /towel/i.test(p.name || "") && /\b6\s*[-–to]+\s*12\b/i.test(p.ageGroup || "");
+    return isTowel;
+  }
+
+  if (target.includes("1 - 4") || target.includes("1-4")) {
+    return (
+      hasMatch(/\b1\s*[-–to]+\s*4\b/i) ||
+      hasMatch(/\b1\s*[-–to]+\s*2\b/i) ||
+      hasMatch(/\b2\s*[-–to]+\s*3\b/i) ||
+      hasMatch(/\b3\s*[-–to]+\s*4\b/i) ||
+      hasMatch(/\b2\s*[-–to]+\s*4\b/i) ||
+      hasMatch(/\b4\s*[-–to]+\s*5\b/i) ||
+      hasMatch(/\b(?:1|2|3|4)\s*(?:y|yr|years?)\b/i)
+    );
+  }
+
+  const cleanTarget = target.replace(/[^a-z0-9]/g, "");
+  return allStrings.some((s) => s.toLowerCase().replace(/[^a-z0-9]/g, "").includes(cleanTarget));
+};
+
 function Shop() {
   const search = Route.useSearch();
   const { products, loadingProducts, prints, isShopByPrintEnabled, categories } = useShop();
@@ -53,7 +188,13 @@ function Shop() {
   const [selectedSubCats, setSelectedSubCats] = useState(
     search.subCategory ? [search.subCategory.toLowerCase()] : []
   );
-  const [selectedAges, setSelectedAges] = useState(search.age ? [search.age] : []);
+  const [selectedAges, setSelectedAges] = useState(() => {
+    if (search.age) {
+      const normalized = normalizeAgeParam(search.age);
+      return normalized ? [normalized] : [];
+    }
+    return [];
+  });
   const [selectedPrints, setSelectedPrints] = useState(() => {
     const initial = [];
     if (search.print) initial.push(search.print);
@@ -113,12 +254,13 @@ function Shop() {
   }, [search.subCategory]);
 
   useEffect(() => {
-    if (search.age) {
-      let ageVal = search.age;
-      if (["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "2 - 4 Years"].includes(ageVal)) {
-        ageVal = "1 - 4 Years";
+    if (search.age !== undefined && search.age !== null) {
+      const normalized = normalizeAgeParam(search.age);
+      if (normalized) {
+        setSelectedAges([normalized]);
+      } else {
+        setSelectedAges([]);
       }
-      setSelectedAges((prev) => (prev.includes(ageVal) ? prev : [ageVal]));
     }
   }, [search.age]);
 
@@ -128,8 +270,8 @@ function Shop() {
       const ag = p.ageGroup || p.age;
       if (
         ag &&
-        !list.includes(ag) &&
-        !["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "2 - 4 Years"].includes(ag)
+        !list.some((item) => item.toLowerCase() === ag.toLowerCase()) &&
+        !["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "2 - 4 Years", "4 - 5 Years", "Newborn", "NB", "0 - 3 Months", "3 - 6 Months", "6 - 12 Months", "1 - 4 Years"].some((k) => k.toLowerCase() === ag.toLowerCase())
       ) {
         list.push(ag);
       }
@@ -245,23 +387,7 @@ function Shop() {
       // 3. Age Match
       const ageMatch =
         selectedAges.length === 0 ||
-        selectedAges.some((a) => {
-          const prodAge = (p.ageGroup || p.age || "").toLowerCase();
-          const target = a.toLowerCase();
-          if (target === "1 - 4 years") {
-            if (
-              prodAge.includes("1 - 2") ||
-              prodAge.includes("2 - 3") ||
-              prodAge.includes("3 - 4") ||
-              prodAge.includes("1 - 4") ||
-              prodAge.includes("2 - 4") ||
-              prodAge.includes("2+")
-            ) {
-              return true;
-            }
-          }
-          return prodAge.includes(target);
-        });
+        selectedAges.some((a) => productMatchesAge(p, a));
 
       // 4. Print Match
       const printMatch =
@@ -387,7 +513,7 @@ function Shop() {
           <CheckRow
             key={a}
             label={a}
-            checked={selectedAges.includes(a)}
+            checked={selectedAges.some((sa) => sa.toLowerCase() === a.toLowerCase())}
             onChange={() => toggle(selectedAges, setSelectedAges, a)}
           />
         ))}

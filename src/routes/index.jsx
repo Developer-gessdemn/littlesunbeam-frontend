@@ -551,7 +551,7 @@ function Home() {
                     <CheckCircle2 className="h-4 w-4 text-primary" /> Hypoallergenic
                   </div>
                   <div className="flex items-center gap-2 rounded-full bg-background px-4 py-2 text-xs font-bold shadow-xs">
-                    <CheckCircle2 className="h-4 w-4 text-primary" /> Eco Packaging
+                    <CheckCircle2 className="h-4 w-4 text-primary" /> Hygienic Sealed Pack
                   </div>
                 </div>
               </div>
@@ -563,29 +563,78 @@ function Home() {
         <CustomerReviewsCarousel />
 
         {/* Founder Message */}
-        <section className="mx-auto max-w-7xl px-4 py-6">
-          <div className="overflow-hidden rounded-2xl sm:rounded-3xl border border-border bg-card shadow-[var(--shadow-lift)] md:grid md:grid-cols-2">
-            <div className="h-52 sm:h-64 md:h-auto overflow-hidden bg-muted">
-              <img src={hero} alt="Founder" className="h-full w-full object-cover" />
+        <section className="mx-auto max-w-7xl px-4 py-8">
+          <div className="overflow-hidden rounded-2xl sm:rounded-3xl border border-border/80 bg-card shadow-[var(--shadow-lift)] md:grid md:grid-cols-2">
+            <div className="relative h-64 sm:h-80 md:h-full min-h-[280px] overflow-hidden bg-muted">
+              <img src={hero} alt="Founder and Baby" className="h-full w-full object-cover object-center transition-transform duration-700 hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent md:hidden" />
+              <div className="absolute bottom-3 left-3 md:hidden">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 dark:bg-card/90 px-3 py-1 text-xs font-bold text-foreground backdrop-blur-xs shadow-sm">
+                  <Heart className="h-3.5 w-3.5 fill-primary text-primary" /> Crafted with Mother's Love
+                </span>
+              </div>
             </div>
-            <div className="p-5 sm:p-8 md:p-12 flex flex-col justify-center space-y-4 sm:space-y-5">
-              <h2 className="text-2xl font-extrabold sm:text-3xl">
+            <div className="p-6 sm:p-9 md:p-12 flex flex-col justify-center space-y-4 sm:space-y-5 bg-gradient-to-br from-card via-card to-primary/5">
+              <div className="hidden md:inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3.5 py-1 text-xs font-bold text-primary w-fit">
+                <Heart className="h-3.5 w-3.5 fill-primary text-primary" /> A Mother&apos;s Personal Promise
+              </div>
+
+              <h2 className="text-2xl font-extrabold sm:text-3xl lg:text-4xl tracking-tight text-foreground">
                 A Message from <span className="sun-underline">Our Founder</span>
               </h2>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                As a mother, I wanted nothing but the best for my child — especially when it comes to comfort, safety, and quality. That's why we created Little Sunbeam. Every product is crafted with hypoallergenic organic cotton to give your baby the gentlest embrace.
+
+              <blockquote className="border-l-4 border-primary/60 pl-4 py-1 text-base sm:text-lg font-medium text-foreground italic leading-snug">
+                &ldquo;When my little one was born, I wanted clothing as pure and comforting as a mother&apos;s warm hug — safe, soft, and completely free from harsh chemicals.&rdquo;
+              </blockquote>
+
+              <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
+                Finding garments that wouldn&apos;t irritate delicate newborn skin inspired the birth of <strong className="text-foreground font-semibold">Little Sunbeam</strong>. Handcrafted in Tiruppur, every swaddle, romper, and daily essential is woven with 100% hypoallergenic organic cotton, skin-friendly non-toxic dyes, and flat seams designed to protect your baby through every sleepy cuddle and joyful giggle.
               </p>
-              <div>
-                <Link
-                  to="/shop"
-                  className="inline-block rounded-full bg-primary px-7 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/85"
-                >
-                  Learn more
-                </Link>
+
+              {/* Trust highlights */}
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-foreground">
+                  <Leaf className="h-4 w-4 text-emerald-500 shrink-0" />
+                  <span>100% Organic Cotton</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-foreground">
+                  <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+                  <span>Hypoallergenic &amp; Safe</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-foreground">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                  <span>Tagless &amp; Scratch-Free</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-foreground">
+                  <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span>Tiruppur Pure Weave</span>
+                </div>
+              </div>
+
+              {/* Sign-off & CTA */}
+              <div className="pt-3 border-t border-border/70 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold text-foreground">The Little Sunbeam Family</p>
+                  <p className="text-xs text-muted-foreground">Founder &amp; Parents, Tiruppur</p>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Link
+                    to="/shop"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-primary px-6 py-2.5 text-xs sm:text-sm font-bold text-primary-foreground shadow-sm hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <span>Shop Essentials</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                  <Link
+                    to="/contact"
+                    className="inline-flex items-center rounded-full border border-border bg-background px-5 py-2.5 text-xs sm:text-sm font-bold text-foreground hover:bg-muted transition-colors"
+                  >
+                    Contact Us
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
-
         </section>
       </main>
 
