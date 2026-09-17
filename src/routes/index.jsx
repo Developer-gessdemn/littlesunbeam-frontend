@@ -538,9 +538,9 @@ function Home() {
                   <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-primary uppercase tracking-wider">
                     <Award className="h-4 w-4" /> Little Sunbeam Quality Guarantee
                   </span>
-                  <h3 className="text-xl font-extrabold">Gentle on your baby, kind to the planet</h3>
+                  <h3 className="text-xl font-extrabold">Made with care for little moments</h3>
                   <p className="max-w-xl text-xs text-muted-foreground">
-                    From organic seed selection to eco-conscious plastic-free packaging, we ensure every detail meets the highest standard for newborn safety and comfort.
+                    From the first cuddle to everyday adventures, we choose soft, comfortable fabrics and thoughtful designs that make dressing your little one a little more special.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-3">
