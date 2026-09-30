@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SlidersHorizontal, X, Home, ChevronRight, Check } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader.jsx";
@@ -16,8 +16,8 @@ export const Route = createFileRoute("/shop")({
       typeof search.subCategory === "string"
         ? search.subCategory
         : typeof search.subcategory === "string"
-        ? search.subcategory
-        : undefined,
+          ? search.subcategory
+          : undefined,
     age: typeof search.age === "string" ? search.age : undefined,
     print: typeof search.print === "string" ? search.print : undefined,
     prints: typeof search.prints === "string" ? search.prints : undefined,
@@ -214,6 +214,62 @@ function Shop() {
   const [maxPrice, setMaxPrice] = useState(MAX_PRICE);
   const [sort, setSort] = useState("featured");
   const [openMobile, setOpenMobile] = useState(false);
+
+  const productGridRef = useRef(null);
+  const isInitialMount = useRef(true);
+  const scrollTimeoutRef = useRef(null);
+  const wasMobileOpenRef = useRef(false);
+
+  const scrollToProductGrid = (immediate = false) => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+
+    const executeScroll = () => {
+      if (!productGridRef.current) return;
+      const stickyNav = document.querySelector(".sticky.top-0");
+      const navHeight = stickyNav ? stickyNav.getBoundingClientRect().height : 50;
+      const targetRect = productGridRef.current.getBoundingClientRect();
+      const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
+      const targetTop = targetRect.top + currentScroll - navHeight - 16;
+
+      window.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: "smooth",
+      });
+    };
+
+    if (immediate) {
+      executeScroll();
+    } else {
+      scrollTimeoutRef.current = setTimeout(executeScroll, 60);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Smooth scroll to product grid when any filter option is selected, changed, or removed
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    scrollToProductGrid();
+  }, [selectedCats, selectedSubCats, selectedAges, selectedPrints, maxPrice, searchQuery]);
+
+  // Smooth scroll to product grid when mobile filters drawer is closed
+  useEffect(() => {
+    if (wasMobileOpenRef.current && !openMobile) {
+      scrollToProductGrid(true);
+    }
+    wasMobileOpenRef.current = openMobile;
+  }, [openMobile]);
 
   // Sync state if search params change
   useEffect(() => {
@@ -719,7 +775,7 @@ function Shop() {
             </div>
           </aside>
 
-          <div>
+          <div ref={productGridRef} id="product-grid" className="scroll-mt-20">
             {filtered.length ? (
               <div className="grid grid-cols-2 gap-3 sm:gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
                 {filtered.map((p) => (

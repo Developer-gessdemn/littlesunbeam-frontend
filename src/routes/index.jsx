@@ -642,7 +642,7 @@ function Home() {
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3">
         <button
           onClick={scrollToTop}
-          className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/85 transition-transform hover:scale-105"
+          className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/85 transition-transform hover:scale-105 cursor-pointer"
           aria-label="Back to top"
         >
           <ArrowUp className="h-4 w-4" />

@@ -159,7 +159,8 @@
 
   /* Responsive Root Font Size: scales rem values proportionally per device */
   html {
-    font-size: 15px; /* Mobile phones: 320px - 639px */
+    font-size: 15px;
+    /* Mobile phones: 320px - 639px */
     -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
     overflow-x: clip;
@@ -167,19 +168,22 @@
 
   @media (min-width: 640px) {
     html {
-      font-size: 16px; /* Small tablets & phablets */
+      font-size: 16px;
+      /* Small tablets & phablets */
     }
   }
 
   @media (min-width: 1024px) {
     html {
-      font-size: 17px; /* Laptops & desktops */
+      font-size: 17px;
+      /* Laptops & desktops */
     }
   }
 
   @media (min-width: 1440px) {
     html {
-      font-size: 18px; /* Large widescreen monitors */
+      font-size: 18px;
+      /* Large widescreen monitors */
     }
   }
 
@@ -206,7 +210,10 @@
   }
 
   /* Form controls touch target optimization */
-  input, select, textarea, button {
+  input,
+  select,
+  textarea,
+  button {
     font-family: inherit;
   }
 }
@@ -243,6 +250,7 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
@@ -252,6 +260,7 @@
   0% {
     transform: translate3d(0, 0, 0);
   }
+
   100% {
     transform: translate3d(-50%, 0, 0);
   }
