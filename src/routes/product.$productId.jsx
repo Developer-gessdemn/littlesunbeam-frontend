@@ -1054,10 +1054,14 @@ function ProductDetailsPage() {
                         <span className="font-bold text-neutral-800 truncate">{product.fabric}</span>
                       </div>
                     )}
-                    {(product.ageGroup || product.age) && (
+                    {(product.ageGroup || product.age || (Array.isArray(product.ageGroups) && product.ageGroups.length > 0)) && (
                       <div className="flex flex-col min-w-0">
                         <span className="text-[10px] uppercase font-bold text-neutral-400">Age Group</span>
-                        <span className="font-bold text-neutral-800 truncate">{product.ageGroup || product.age}</span>
+                        <span className="font-bold text-neutral-800 truncate">
+                          {Array.isArray(product.ageGroups) && product.ageGroups.length > 0
+                            ? product.ageGroups.join(", ")
+                            : (product.ageGroup || product.age)}
+                        </span>
                       </div>
                     )}
                     {product.returnEligibility && (
@@ -1200,10 +1204,14 @@ function ProductDetailsPage() {
                                   <p className="font-bold text-neutral-900 text-xs mt-0.5 break-words">{product.fabric}</p>
                                 </div>
                               )}
-                              {(product.ageGroup || product.age) && (
+                              {(product.ageGroup || product.age || (Array.isArray(product.ageGroups) && product.ageGroups.length > 0)) && (
                                 <div className="rounded-xl border border-neutral-200/80 bg-neutral-50/50 p-2.5 sm:p-3 min-w-0">
                                   <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide block">Age Group</span>
-                                  <p className="font-bold text-neutral-900 text-xs mt-0.5 break-words">{product.ageGroup || product.age}</p>
+                                  <p className="font-bold text-neutral-900 text-xs mt-0.5 break-words">
+                                    {Array.isArray(product.ageGroups) && product.ageGroups.length > 0
+                                      ? product.ageGroups.join(", ")
+                                      : (product.ageGroup || product.age)}
+                                  </p>
                                 </div>
                               )}
                               {product.gender && (

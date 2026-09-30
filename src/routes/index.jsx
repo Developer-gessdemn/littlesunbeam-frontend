@@ -566,17 +566,17 @@ function Home() {
         <section className="mx-auto max-w-7xl px-4 py-8">
           <div className="overflow-hidden rounded-2xl sm:rounded-3xl border border-border/80 bg-card shadow-[var(--shadow-lift)] md:grid md:grid-cols-2">
             <div className="relative h-64 sm:h-80 md:h-full min-h-[280px] overflow-hidden bg-muted">
-              <img src={hero} alt="Founder and Baby" className="h-full w-full object-cover object-center transition-transform duration-700 hover:scale-105" />
+              <img src={hero} alt="Little Sunbeam Baby" className="h-full w-full object-cover object-center transition-transform duration-700 hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent md:hidden" />
               <div className="absolute bottom-3 left-3 md:hidden">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 dark:bg-card/90 px-3 py-1 text-xs font-bold text-foreground backdrop-blur-xs shadow-sm">
-                  <Heart className="h-3.5 w-3.5 fill-primary text-primary" /> Crafted with Mother's Love
+                  <Heart className="h-3.5 w-3.5 fill-primary text-primary" /> A Founder&apos;s Promise
                 </span>
               </div>
             </div>
             <div className="p-6 sm:p-9 md:p-12 flex flex-col justify-center space-y-4 sm:space-y-5 bg-gradient-to-br from-card via-card to-primary/5">
               <div className="hidden md:inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3.5 py-1 text-xs font-bold text-primary w-fit">
-                <Heart className="h-3.5 w-3.5 fill-primary text-primary" /> A Mother&apos;s Personal Promise
+                <Heart className="h-3.5 w-3.5 fill-primary text-primary" /> A Founder&apos;s Personal Promise
               </div>
 
               <h2 className="text-2xl font-extrabold sm:text-3xl lg:text-4xl tracking-tight text-foreground">
@@ -584,11 +584,11 @@ function Home() {
               </h2>
 
               <blockquote className="border-l-4 border-primary/60 pl-4 py-1 text-base sm:text-lg font-medium text-foreground italic leading-snug">
-                &ldquo;When my little one was born, I wanted clothing as pure and comforting as a mother&apos;s warm hug — safe, soft, and completely free from harsh chemicals.&rdquo;
+                &ldquo;As the founder of Little Sunbeam, I wanted to create something that puts your little one&apos;s comfort, safety, and quality first. That&apos;s why we created Little Sunbeam.&rdquo;
               </blockquote>
 
               <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-                Finding garments that wouldn&apos;t irritate delicate newborn skin inspired the birth of <strong className="text-foreground font-semibold">Little Sunbeam</strong>. Handcrafted in Tiruppur, every swaddle, romper, and daily essential is woven with 100% hypoallergenic organic cotton, skin-friendly non-toxic dyes, and flat seams designed to protect your baby through every sleepy cuddle and joyful giggle.
+                Every product is thoughtfully chosen and crafted with care, using soft, gentle fabrics to give your baby the comfort they deserve. From everyday essentials to special little outfits, our goal is to make dressing your little one a little more comfortable and a lot more special.
               </p>
 
               {/* Trust highlights */}
@@ -615,7 +615,7 @@ function Home() {
               <div className="pt-3 border-t border-border/70 flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-bold text-foreground">The Little Sunbeam Family</p>
-                  <p className="text-xs text-muted-foreground">Founder &amp; Parents, Tiruppur</p>
+                  <p className="text-xs text-muted-foreground">Founder &amp; Team, Tiruppur</p>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <Link

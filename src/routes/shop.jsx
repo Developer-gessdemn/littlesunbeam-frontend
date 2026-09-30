@@ -104,7 +104,12 @@ export const productMatchesAge = (p, targetAge) => {
 
   // Gather all potential size / age strings
   const tokens = new Set();
-  if (p.ageGroup) tokens.add(String(p.ageGroup));
+  if (p.ageGroup) {
+    String(p.ageGroup).split(",").forEach((s) => s.trim() && tokens.add(s.trim()));
+  }
+  if (Array.isArray(p.ageGroups)) {
+    p.ageGroups.forEach((s) => s && tokens.add(String(s).trim()));
+  }
   if (p.age) tokens.add(String(p.age));
   if (Array.isArray(p.sizes)) {
     p.sizes.forEach((s) => s && tokens.add(String(s)));
@@ -267,14 +272,19 @@ function Shop() {
   const displayedAgeGroups = useMemo(() => {
     const list = [...ageGroups];
     (products || []).forEach((p) => {
-      const ag = p.ageGroup || p.age;
-      if (
-        ag &&
-        !list.some((item) => item.toLowerCase() === ag.toLowerCase()) &&
-        !["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "2 - 4 Years", "4 - 5 Years", "Newborn", "NB", "0 - 3 Months", "3 - 6 Months", "6 - 12 Months", "1 - 4 Years"].some((k) => k.toLowerCase() === ag.toLowerCase())
-      ) {
-        list.push(ag);
-      }
+      const allAges = [
+        ...(Array.isArray(p.ageGroups) ? p.ageGroups : []),
+        ...(p.ageGroup ? String(p.ageGroup).split(",").map((s) => s.trim()) : []),
+        ...(p.age ? [p.age] : []),
+      ];
+      allAges.forEach((ag) => {
+        if (
+          ag &&
+          !list.some((item) => item.toLowerCase() === ag.toLowerCase())
+        ) {
+          list.push(ag);
+        }
+      });
     });
     return list;
   }, [products]);

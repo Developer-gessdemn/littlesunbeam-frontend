@@ -462,8 +462,9 @@ function AdminPage() {
       if (Array.isArray(parsed)) {
         return parsed.filter(
           (ag) =>
-            !["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "4 - 5 Years", "5 - 6 Years", "Newborn"].includes(ag) &&
-            !DEFAULT_AGE_GROUPS.includes(ag)
+            typeof ag === "string" &&
+            ag.trim() &&
+            !DEFAULT_AGE_GROUPS.includes(ag.trim())
         );
       }
       return [];
@@ -547,6 +548,7 @@ function AdminPage() {
       details: "",
       gender: "Unisex",
       ageGroup: "0 - 3 Months",
+      ageGroups: ["0 - 3 Months"],
       fabric: "100% GOTS Certified Organic Cotton",
       pattern: "",
       print: "",
@@ -605,18 +607,31 @@ function AdminPage() {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Memoized Age Groups list (Defaults + Custom + Existing Product Age Group)
+  // Current selected age groups helper
+  const currentSelectedAgeGroups = useMemo(() => {
+    if (Array.isArray(productForm.ageGroups) && productForm.ageGroups.length > 0) {
+      return productForm.ageGroups;
+    }
+    if (productForm.ageGroup) {
+      return String(productForm.ageGroup).split(",").map((s) => s.trim()).filter(Boolean);
+    }
+    return ["0 - 3 Months"];
+  }, [productForm.ageGroups, productForm.ageGroup]);
+
+  // Memoized Age Groups list (Defaults + Custom + Form Age Groups)
   const allAgeGroups = useMemo(() => {
     const combined = [...DEFAULT_AGE_GROUPS, ...customAgeGroups];
-    if (productForm.ageGroup && !combined.includes(productForm.ageGroup)) {
-      combined.push(productForm.ageGroup);
-    }
+    currentSelectedAgeGroups.forEach((ag) => {
+      if (ag && !combined.includes(ag)) {
+        combined.push(ag);
+      }
+    });
     return Array.from(new Set(combined.filter(Boolean)));
-  }, [customAgeGroups, productForm.ageGroup]);
+  }, [customAgeGroups, currentSelectedAgeGroups]);
 
-  // Memoized Available Sizes list (Defaults + Custom + Existing Variants Sizes)
+  // Memoized Available Sizes list (Defaults + Custom Sizes + Custom Age Groups + Existing Variants Sizes)
   const allAvailableSizes = useMemo(() => {
-    const combined = [...DEFAULT_AVAILABLE_SIZES, ...customSizes];
+    const combined = [...DEFAULT_AVAILABLE_SIZES, ...customSizes, ...customAgeGroups];
     (productForm.colorVariants || []).forEach((cv) => {
       (cv.sizes || []).forEach((sz) => {
         if (sz && !combined.includes(sz)) {
@@ -625,13 +640,34 @@ function AdminPage() {
       });
     });
     return Array.from(new Set(combined.filter(Boolean)));
-  }, [customSizes, productForm.colorVariants]);
+  }, [customSizes, customAgeGroups, productForm.colorVariants]);
+
+  // Toggle Age Group selection (Supports selecting 1 or more extra age groups)
+  const handleToggleAgeGroup = (ag) => {
+    if (!ag) return;
+    let updated;
+    if (currentSelectedAgeGroups.includes(ag)) {
+      if (currentSelectedAgeGroups.length > 1) {
+        updated = currentSelectedAgeGroups.filter((x) => x !== ag);
+      } else {
+        // If it's the only one selected, keep it or allow toggling
+        updated = [];
+      }
+    } else {
+      updated = [...currentSelectedAgeGroups, ag];
+    }
+    setProductForm((prev) => ({
+      ...prev,
+      ageGroups: updated,
+      ageGroup: updated.join(", "),
+    }));
+  };
 
   // Add Custom Age Group Handler
   const handleAddCustomAgeGroup = (val) => {
     const trimmed = (val || newAgeGroupInput).trim();
     if (!trimmed) return;
-    if (!allAgeGroups.includes(trimmed)) {
+    if (!customAgeGroups.includes(trimmed) && !DEFAULT_AGE_GROUPS.includes(trimmed)) {
       const updated = [...customAgeGroups, trimmed];
       setCustomAgeGroups(updated);
       try {
@@ -640,10 +676,18 @@ function AdminPage() {
         console.warn("Could not save custom age group to localStorage", e);
       }
     }
-    setProductForm((prev) => ({ ...prev, ageGroup: trimmed }));
+    const updatedSelected = currentSelectedAgeGroups.includes(trimmed)
+      ? currentSelectedAgeGroups
+      : [...currentSelectedAgeGroups, trimmed];
+
+    setProductForm((prev) => ({
+      ...prev,
+      ageGroups: updatedSelected,
+      ageGroup: updatedSelected.join(", "),
+    }));
     setNewAgeGroupInput("");
     setShowAddAgeGroupInput(false);
-    showNotification(`Added age group: "${trimmed}"`);
+    showNotification(`Added and selected age group: "${trimmed}"`);
   };
 
   // Remove Custom Age Group Handler
@@ -657,8 +701,14 @@ function AdminPage() {
     } catch (e) {
       console.warn("Could not remove custom age group from localStorage", e);
     }
-    if (productForm.ageGroup === agToRemove) {
-      setProductForm((prev) => ({ ...prev, ageGroup: DEFAULT_AGE_GROUPS[0] || "0 - 3 Months" }));
+    if (currentSelectedAgeGroups.includes(agToRemove)) {
+      const newSelected = currentSelectedAgeGroups.filter((ag) => ag !== agToRemove);
+      const fallback = newSelected.length > 0 ? newSelected : [DEFAULT_AGE_GROUPS[0] || "0 - 3 Months"];
+      setProductForm((prev) => ({
+        ...prev,
+        ageGroups: fallback,
+        ageGroup: fallback.join(", "),
+      }));
     }
     showNotification(`Removed age group: "${agToRemove}"`);
   };
@@ -1230,8 +1280,16 @@ function AdminPage() {
       : (p.video ? [p.video.trim()] : []);
     const mainVideo = p.video || existingVideos[0] || "";
     let initialAgeGroup = p.ageGroup || p.age || "0 - 3 Months";
-    if (["1 - 2 Years", "2 - 3 Years", "3 - 4 Years", "2 - 4 Years"].includes(initialAgeGroup)) {
-      initialAgeGroup = "1 - 4 Years";
+    let initialAgeGroups = [];
+    if (Array.isArray(p.ageGroups) && p.ageGroups.length > 0) {
+      initialAgeGroups = p.ageGroups.map((s) => String(s).trim()).filter(Boolean);
+    } else if (p.ageGroup) {
+      initialAgeGroups = String(p.ageGroup).split(",").map((s) => s.trim()).filter(Boolean);
+    } else if (p.age) {
+      initialAgeGroups = [String(p.age).trim()];
+    }
+    if (initialAgeGroups.length === 0) {
+      initialAgeGroups = [initialAgeGroup];
     }
 
     // Resolve correct price/mrp: if variant prices are higher than root price,
@@ -1274,7 +1332,8 @@ function AdminPage() {
       description: p.description || "",
       details: p.details || "",
       gender: p.gender || "Unisex",
-      ageGroup: initialAgeGroup,
+      ageGroup: initialAgeGroups.join(", "),
+      ageGroups: initialAgeGroups,
       fabric: p.fabric || "",
       pattern: p.pattern || "",
       print: p.print || (existingPrints[0] || ""),
@@ -1437,6 +1496,8 @@ function AdminPage() {
         season: productForm.season ? productForm.season.trim() : "",
         fabric: productForm.fabric ? productForm.fabric.trim() : "",
         pattern: productForm.pattern ? productForm.pattern.trim() : "",
+        ageGroup: (currentSelectedAgeGroups.length > 0 ? currentSelectedAgeGroups.join(", ") : productForm.ageGroup) || "0 - 3 Months",
+        ageGroups: currentSelectedAgeGroups.length > 0 ? currentSelectedAgeGroups : ["0 - 3 Months"],
         tags: Array.isArray(productForm.tags)
           ? productForm.tags
           : typeof productForm.tags === "string"
@@ -5214,14 +5275,19 @@ function AdminPage() {
                                   <label className="block text-xs font-bold uppercase text-muted-foreground">
                                     Primary Age Group
                                   </label>
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowAddAgeGroupInput(!showAddAgeGroupInput)}
-                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline cursor-pointer"
-                                  >
-                                    <Plus className="h-3 w-3" />
-                                    <span>Add Option</span>
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                                      {currentSelectedAgeGroups.length} selected
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowAddAgeGroupInput(!showAddAgeGroupInput)}
+                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                      <span>Add Option</span>
+                                    </button>
+                                  </div>
                                 </div>
 
                                 {showAddAgeGroupInput && (
@@ -5240,7 +5306,7 @@ function AdminPage() {
                                           setNewAgeGroupInput("");
                                         }
                                       }}
-                                      placeholder="e.g. 6 - 9 Months, 6 - 7 Years"
+                                      placeholder="e.g. 6 - 9 Months, Free Size, 6 - 7 Years"
                                       className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs outline-none focus:border-primary"
                                     />
                                     <button
@@ -5265,35 +5331,50 @@ function AdminPage() {
                                 )}
 
                                 <select
-                                  value={productForm.ageGroup}
-                                  onChange={(e) => setProductForm({ ...productForm, ageGroup: e.target.value })}
+                                  value={currentSelectedAgeGroups.length === 1 ? currentSelectedAgeGroups[0] : ""}
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      handleToggleAgeGroup(e.target.value);
+                                    }
+                                  }}
                                   className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2 text-sm font-semibold outline-none focus:border-primary focus:bg-background transition"
                                 >
+                                  <option value="" disabled>
+                                    {currentSelectedAgeGroups.length === 0
+                                      ? "Select Age Group"
+                                      : currentSelectedAgeGroups.length === 1
+                                        ? currentSelectedAgeGroups[0]
+                                        : `${currentSelectedAgeGroups.length} Age Groups Selected (${currentSelectedAgeGroups.join(", ")})`}
+                                  </option>
                                   {allAgeGroups.map((ag) => (
                                     <option key={ag} value={ag}>
-                                      {ag} {!DEFAULT_AGE_GROUPS.includes(ag) ? " (Custom)" : ""}
+                                      {currentSelectedAgeGroups.includes(ag) ? `✓ ${ag}` : ag} {!DEFAULT_AGE_GROUPS.includes(ag) ? " (Custom)" : ""}
                                     </option>
                                   ))}
                                 </select>
 
-                                {/* Selectable chips for fast one-click selection and deletion */}
+                                {/* Selectable chips for fast multi-selection and deletion */}
                                 <div className="flex flex-wrap gap-1.5 pt-2">
                                   {allAgeGroups.map((ag) => {
-                                    const isSelected = productForm.ageGroup === ag;
+                                    const isSelected = currentSelectedAgeGroups.includes(ag);
                                     const isCustom = !DEFAULT_AGE_GROUPS.includes(ag);
 
                                     return (
                                       <div
                                         key={ag}
-                                        className={`group inline-flex items-center rounded-lg border text-[11px] font-bold transition-all ${isSelected
-                                          ? "border-primary bg-primary text-primary-foreground shadow-xs"
-                                          : "border-border bg-background text-foreground hover:border-primary/60"
+                                        onClick={() => handleToggleAgeGroup(ag)}
+                                        className={`group inline-flex items-center rounded-lg border text-[11px] font-bold transition-all cursor-pointer select-none ${isSelected
+                                          ? "border-primary bg-primary text-primary-foreground shadow-xs scale-102"
+                                          : "border-border bg-background text-foreground hover:border-primary/60 hover:bg-muted/40"
                                           }`}
                                       >
                                         <button
                                           type="button"
-                                          onClick={() => setProductForm({ ...productForm, ageGroup: ag })}
-                                          className="px-2.5 py-1 cursor-pointer flex items-center gap-1"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleAgeGroup(ag);
+                                          }}
+                                          className="px-2.5 py-1 cursor-pointer flex items-center gap-1 font-bold"
                                         >
                                           <span>{ag}</span>
                                           {isSelected && <Check className="h-3 w-3" />}
