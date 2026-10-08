@@ -897,82 +897,124 @@ function ProductDetailsPage() {
               </div>
 
               {/* 7. Size Selector & Size Guide */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-extrabold uppercase tracking-wider text-neutral-900">
-                    Size: <span className="font-bold text-neutral-700">{selectedSize}</span>
-                  </span>
+              <div className="space-y-3">
+                {/* Header Row */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-extrabold uppercase tracking-widest text-neutral-500">
+                      SIZE
+                    </span>
+                    <span className="h-4 w-px bg-neutral-200" />
+                    <span className="text-sm font-bold text-neutral-900">{selectedSize}</span>
+                  </div>
 
                   {showSizeGuideButton && (
                     <button
                       type="button"
                       onClick={() => setSizeGuideOpen(true)}
-                      className="flex items-center gap-1.5 font-bold transition cursor-pointer text-primary hover:underline underline-offset-4"
+                      className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-bold text-neutral-600 shadow-xs transition hover:border-black hover:text-black cursor-pointer"
                     >
-                      <Ruler className="h-3.5 w-3.5 text-primary" />
+                      <Ruler className="h-3 w-3" />
                       <span>{hasCustomSizeChart ? "Size Chart" : "Size Guide"}</span>
                     </button>
                   )}
                 </div>
 
-                <div className="flex flex-wrap gap-2 sm:gap-2.5">
+                {/* Size Cards Grid */}
+                <div className="flex flex-wrap gap-2">
                   {sizes.map((sz) => {
                     const sizeInv =
                       activeCv && Array.isArray(activeCv.inventory)
                         ? activeCv.inventory.find(
-                          (inv) => (inv.size || "").toLowerCase() === sz.toLowerCase()
-                        )
+                            (inv) => (inv.size || "").toLowerCase() === sz.toLowerCase()
+                          )
                         : null;
                     const sizeStock = sizeInv
                       ? Number(sizeInv.stock)
                       : Number(product?.stock !== undefined ? product.stock : 50);
                     const isSizeOOS = sizeStock <= 0;
+                    const isLowStock = !isSizeOOS && sizeStock <= 5;
                     const isSelected = (selectedSize || "").toLowerCase() === sz.toLowerCase();
+                    const customSizePrice =
+                      sizeInv?.price !== undefined &&
+                      !isNaN(Number(sizeInv.price)) &&
+                      Number(sizeInv.price) > 0
+                        ? Number(sizeInv.price)
+                        : null;
 
                     return (
                       <button
                         key={sz}
                         type="button"
-                        onClick={() => setSelectedSize(sz)}
-                        className={`relative rounded-xl sm:rounded-2xl px-3.5 py-2 sm:px-5 sm:py-2.5 text-xs font-extrabold transition-all duration-200 cursor-pointer ${isSelected
-                            ? "bg-black text-white shadow-md scale-102"
+                        disabled={isSizeOOS}
+                        onClick={() => !isSizeOOS && setSelectedSize(sz)}
+                        className={`
+                          group relative flex flex-col items-center justify-center gap-0.5
+                          min-w-[60px] rounded-2xl px-3 py-2.5 transition-all duration-200
+                          ${isSelected
+                            ? "bg-neutral-900 text-white shadow-lg shadow-neutral-900/20 scale-[1.04] ring-2 ring-neutral-900 ring-offset-1"
                             : isSizeOOS
-                              ? "border border-dashed border-neutral-300 bg-neutral-100/70 text-neutral-400 cursor-pointer"
-                              : "border border-neutral-200 bg-white text-neutral-800 hover:border-black"
-                          }`}
+                              ? "border border-dashed border-neutral-200 bg-neutral-50 text-neutral-300 cursor-not-allowed"
+                              : "border border-neutral-200 bg-white text-neutral-800 hover:border-neutral-800 hover:shadow-sm cursor-pointer"
+                          }
+                        `}
                       >
-                        <span>{sz}</span>
+                        {/* Size Label */}
+                        <span className={`text-[11px] font-extrabold leading-tight text-center whitespace-nowrap ${isSelected ? "text-white" : isSizeOOS ? "text-neutral-300" : "text-neutral-900"}`}>
+                          {sz}
+                        </span>
+
+                        {/* Price Badge */}
+                        {customSizePrice && !isSizeOOS && (
+                          <span className={`text-[10px] font-bold leading-none ${isSelected ? "text-amber-300" : "text-emerald-600"}`}>
+                            ₹{customSizePrice}
+                          </span>
+                        )}
+
+                        {/* OOS Strikethrough Line */}
                         {isSizeOOS && (
-                          <span className="ml-1 text-[10px] text-rose-500 font-bold">(OOS)</span>
+                          <span className="absolute inset-x-2 top-1/2 -translate-y-1/2 h-px bg-neutral-300 rotate-[-20deg] rounded-full" />
+                        )}
+
+                        {/* Low Stock Dot */}
+                        {isLowStock && !isSelected && (
+                          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-400 border-2 border-white shadow-sm" />
+                        )}
+
+                        {/* Selected Checkmark */}
+                        {isSelected && (
+                          <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-white shadow-md">
+                            <svg className="h-2.5 w-2.5 text-neutral-900" viewBox="0 0 10 10" fill="none">
+                              <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </span>
                         )}
                       </button>
                     );
                   })}
                 </div>
 
-                {/* Stock Status Badge */}
-                <div className="pt-0.5">
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] sm:text-[11px] font-extrabold border ${isCurrentVariantOutOfStock
-                        ? "border-rose-200 bg-rose-50 text-rose-700"
-                        : currentVariantStock <= 5
-                          ? "border-amber-200 bg-amber-50 text-amber-700"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      }`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${isCurrentVariantOutOfStock
-                          ? "bg-rose-500"
-                          : currentVariantStock <= 5
-                            ? "bg-amber-500"
-                            : "bg-emerald-500"
-                        }`}
-                    />
+                {/* Stock Status Strip */}
+                <div className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-semibold border
+                  ${isCurrentVariantOutOfStock
+                    ? "bg-rose-50 border-rose-100 text-rose-700"
+                    : currentVariantStock <= 5
+                      ? "bg-amber-50 border-amber-100 text-amber-700"
+                      : "bg-emerald-50 border-emerald-100 text-emerald-700"
+                  }`}>
+                  {/* Animated pulse dot */}
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60
+                      ${isCurrentVariantOutOfStock ? "bg-rose-400" : currentVariantStock <= 5 ? "bg-amber-400" : "bg-emerald-400"}`} />
+                    <span className={`relative inline-flex h-2 w-2 rounded-full
+                      ${isCurrentVariantOutOfStock ? "bg-rose-500" : currentVariantStock <= 5 ? "bg-amber-500" : "bg-emerald-500"}`} />
+                  </span>
+                  <span>
                     {isCurrentVariantOutOfStock
-                      ? "Out of Stock"
+                      ? "This size is currently out of stock"
                       : currentVariantStock <= 5
-                        ? `Only ${currentVariantStock} left in stock — order soon`
-                        : `In Stock (${currentVariantStock} units available)`}
+                        ? `🔥 Only ${currentVariantStock} left — grab it fast!`
+                        : `✓ In Stock — ${currentVariantStock} units ready to ship`}
                   </span>
                 </div>
               </div>

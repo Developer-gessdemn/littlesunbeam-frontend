@@ -312,7 +312,8 @@ export const adminService = {
 
   async getProducts(params = {}) {
     try {
-      const query = new URLSearchParams(params).toString();
+      const mergedParams = { all: "true", limit: 1000, ...params };
+      const query = new URLSearchParams(mergedParams).toString();
       const res = await apiRequest(`/products?${query}`);
       const rawProducts = res.data.products || [];
       // Resolve correct pricing for each product before returning/caching
@@ -422,8 +423,17 @@ export const adminService = {
       const query = new URLSearchParams(params).toString();
       const res = await apiRequest(`/admin/orders?${query}`);
       const fetchedOrders = res.data?.orders || [];
-      saveLocalOrders(fetchedOrders);
-      return { orders: fetchedOrders, total: res.data?.pagination?.total, isLiveBackend: true };
+      // MERGE with existing local orders instead of overwriting — preserves history
+      const existing = getLocalOrders();
+      const merged = [...fetchedOrders];
+      existing.forEach((lo) => {
+        const key = lo._id || lo.orderNumber;
+        if (key && !fetchedOrders.some((fo) => fo._id === key || fo.orderNumber === key)) {
+          merged.push(lo);
+        }
+      });
+      saveLocalOrders(merged);
+      return { orders: merged, total: res.data?.pagination?.total || merged.length, isLiveBackend: true };
     } catch {
       let list = getLocalOrders();
       if (params.status && params.status !== "All") {
@@ -564,11 +574,21 @@ export const adminService = {
       // Verify contact
       const contactLower = cleanContact.toLowerCase();
       const contactDigits = cleanContact.replace(/\D/g, "");
-      const orderEmail = (matched.shippingAddress?.email || matched.user?.email || "").toLowerCase();
-      const orderPhoneDigits = (matched.shippingAddress?.phone || matched.user?.phone || "").replace(/\D/g, "");
+      const orderEmail = (
+        matched.shippingAddress?.email ||
+        matched.customer?.email ||
+        matched.user?.email ||
+        ""
+      ).toLowerCase();
+      const orderPhoneDigits = (
+        matched.shippingAddress?.phone ||
+        matched.customer?.phone ||
+        matched.user?.phone ||
+        ""
+      ).replace(/\D/g, "");
 
       const emailMatch = contactLower.includes("@") && (orderEmail === contactLower || orderEmail.includes(contactLower));
-      const phoneMatch = contactDigits.length >= 6 && orderPhoneDigits.endsWith(contactDigits.slice(-6));
+      const phoneMatch = contactDigits.length >= 6 && (orderPhoneDigits.endsWith(contactDigits.slice(-6)) || contactDigits.endsWith(orderPhoneDigits.slice(-6)));
 
       if (!emailMatch && !phoneMatch) {
         throw new Error("The Email or Mobile Number provided does not match this order's details.");

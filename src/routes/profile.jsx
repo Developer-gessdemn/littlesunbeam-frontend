@@ -38,11 +38,11 @@ import {
 } from "lucide-react";
 import { useShop } from "@/context/ShopContext.jsx";
 import { adminService } from "@/lib/adminService.js";
+import { orderService } from "@/lib/orderService.js";
 import { generateInvoicePdf, printInvoice } from "@/lib/exportUtils.js";
 import InvoiceModal from "@/components/InvoiceModal.jsx";
 import SiteHeader from "@/components/SiteHeader.jsx";
 import SiteFooter from "@/components/SiteFooter.jsx";
-import { API_BASE_URL } from "@/lib/utils.js";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -155,65 +155,50 @@ function ProfilePage() {
     }
   }, [customer]);
 
-  // Load customer orders from backend
+  // Load customer orders — uses orderService which merges backend + localStorage
+  // and matches by userId, email, OR phone for complete history
   useEffect(() => {
-    if (!isCustomerLoggedIn) {
+    if (!isCustomerLoggedIn || !customer) {
       setLoadingOrders(false);
       return;
     }
 
     setLoadingOrders(true);
-    const customerToken = localStorage.getItem("little_sunbeam_customer_token");
-    if (customerToken && !customerToken.startsWith("demo_jwt")) {
-      // Real backend — fetch this customer's own orders
-      fetch(`${API_BASE_URL}/orders`, {
-        headers: { Authorization: `Bearer ${customerToken}` },
+    orderService
+      .getCustomerOrders({
+        customerId: customer._id || customer.id || "",
+        customerEmail: customer.email || "",
+        customerPhone: customer.phone || "",
       })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data?.data?.orders) {
-            setOrders(data.data.orders);
-          } else {
-            // Fallback: filter localStorage orders by email
-            const stored = JSON.parse(localStorage.getItem("little_sunbeam_admin_orders") || "[]");
-            setOrders(
-              stored.filter(
-                (o) =>
-                  o.user?.email?.toLowerCase() === customer?.email?.toLowerCase() ||
-                  o.shippingAddress?.email?.toLowerCase() === customer?.email?.toLowerCase()
-              )
-            );
-          }
-        })
-        .catch(() => {
-          const stored = JSON.parse(localStorage.getItem("little_sunbeam_admin_orders") || "[]");
-          setOrders(
-            stored.filter(
-              (o) =>
-                o.user?.email?.toLowerCase() === customer?.email?.toLowerCase() ||
-                o.shippingAddress?.email?.toLowerCase() === customer?.email?.toLowerCase()
-            )
-          );
-        })
-        .finally(() => setLoadingOrders(false));
-    } else {
-      // Demo/offline mode — filter localStorage orders by this customer's email
-      try {
-        const stored = JSON.parse(localStorage.getItem("little_sunbeam_admin_orders") || "[]");
-        const myOrders = stored.filter(
-          (o) =>
-            o.user?.email?.toLowerCase() === customer?.email?.toLowerCase() ||
-            o.shippingAddress?.email?.toLowerCase() === customer?.email?.toLowerCase() ||
-            String(o.user?._id || o.user?.id) === String(customer?._id || customer?.id)
-        );
-        setOrders(myOrders);
-      } catch {
+      .then(({ orders: fetchedOrders }) => {
+        setOrders(fetchedOrders);
+      })
+      .catch(() => {
         setOrders([]);
-      }
-      setLoadingOrders(false);
-    }
-  }, [isCustomerLoggedIn, customer]);
+      })
+      .finally(() => setLoadingOrders(false));
+  }, [isCustomerLoggedIn, customer?._id, customer?.email, customer?.phone]);
 
+  // Reactively refresh orders when orderService dispatches an update (e.g., new order placed)
+  useEffect(() => {
+    if (!isCustomerLoggedIn || !customer) return;
+
+    const handleOrdersUpdated = () => {
+      orderService
+        .getCustomerOrders({
+          customerId: customer._id || customer.id || "",
+          customerEmail: customer.email || "",
+          customerPhone: customer.phone || "",
+        })
+        .then(({ orders: freshOrders }) => {
+          setOrders(freshOrders);
+        })
+        .catch(() => {});
+    };
+
+    window.addEventListener("orders_updated", handleOrdersUpdated);
+    return () => window.removeEventListener("orders_updated", handleOrdersUpdated);
+  }, [isCustomerLoggedIn, customer?._id, customer?.email, customer?.phone]);
 
   // Filtered orders calculation
   const filteredOrders = useMemo(() => {
@@ -1122,8 +1107,8 @@ function ProfilePage() {
                                       </h4>
                                       <p className="text-[11px] text-muted-foreground mt-0.5">
                                         Qty: <span className="font-bold text-foreground">{item.quantity || 1}</span>
-                                        {item.size && <span> · Size: {item.size}</span>}
-                                        {item.color && <span> · Color: {item.color}</span>}
+                                        {(item.selectedSize || item.size) && <span> · Size: {item.selectedSize || item.size}</span>}
+                                        {(item.selectedColor || item.color) && <span> · Color: {item.selectedColor || item.color}</span>}
                                       </p>
                                     </div>
                                   </div>
@@ -1139,7 +1124,12 @@ function ProfilePage() {
                               <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                                 <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
                                 <span className="truncate max-w-xs">
-                                  {ord.shippingAddress?.address || "Lotus Boulevard"}, {ord.shippingAddress?.city || "Bengaluru"} — {ord.shippingAddress?.pincode || "560001"}
+                                  {[
+                                    ord.shippingAddress?.address || ord.shippingAddress?.street,
+                                    ord.shippingAddress?.city,
+                                    ord.shippingAddress?.state,
+                                    ord.shippingAddress?.pincode ? `— ${ord.shippingAddress.pincode}` : "",
+                                  ].filter(Boolean).join(", ") || "Delivery Address on File"}
                                 </span>
                               </div>
 

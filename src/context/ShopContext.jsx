@@ -1103,7 +1103,11 @@ function InnerShopProvider({ children }) {
             setCustomerAuth((prev) => ({ ...prev, user: freshUser }));
             const addr = freshUser.shippingAddress || freshUser.address;
             if (addr && (addr.street || addr.address)) {
+              const uKey = freshUser._id || freshUser.id || freshUser.email || "";
+              localStorage.setItem(`little_sunbeam_saved_address_${uKey}`, JSON.stringify(addr));
               localStorage.setItem("little_sunbeam_saved_address", JSON.stringify(addr));
+            } else {
+              localStorage.removeItem("little_sunbeam_saved_address");
             }
           }
         })
@@ -1138,12 +1142,17 @@ function InnerShopProvider({ children }) {
         localStorage.setItem(CUSTOMER_USER_KEY, JSON.stringify(user));
         setCustomerAuth({ token, user, isAuthenticated: true });
         const addr = user.shippingAddress || user.address;
+        const uKey = user._id || user.id || user.email || "";
         if (addr && (addr.street || addr.address)) {
+          localStorage.setItem(`little_sunbeam_saved_address_${uKey}`, JSON.stringify(addr));
           localStorage.setItem("little_sunbeam_saved_address", JSON.stringify(addr));
+        } else {
+          localStorage.removeItem("little_sunbeam_saved_address");
         }
       } else {
         localStorage.removeItem(CUSTOMER_TOKEN_KEY);
         localStorage.removeItem(CUSTOMER_USER_KEY);
+        localStorage.removeItem("little_sunbeam_saved_address");
         setCustomerAuth({ token: null, user: null, isAuthenticated: false });
       }
     } catch (e) {

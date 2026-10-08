@@ -63,6 +63,8 @@ import {
   Tag,
   Star,
   ExternalLink,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import {
   AreaChart,
@@ -74,6 +76,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { adminService, getAdminAuth, clearAdminAuth } from "@/lib/adminService";
+import { orderService } from "@/lib/orderService.js";
 import { useShop } from "@/context/ShopContext.jsx";
 import { isInstagramUrl, getInstagramEmbedUrl } from "@/lib/utils.js";
 import InvoiceModal from "@/components/InvoiceModal.jsx";
@@ -765,7 +768,7 @@ function AdminPage() {
         adminService.getDashboard(),
         adminService.getProducts(),
         adminService.getCategories(),
-        adminService.getOrders(),
+        orderService.getAllOrders(),
         adminService.getUsers(),
         adminService.getPrints(),
       ]);
@@ -790,6 +793,20 @@ function AdminPage() {
       setLoading(false);
     }
   };
+
+  // Real-time: refresh orders list when a new order is placed anywhere in the app
+  useEffect(() => {
+    if (!auth.isAuthenticated) return;
+
+    const refreshOrders = () => {
+      orderService.getAllOrders().then((res) => {
+        setOrdersList(res.orders || []);
+      }).catch(() => {});
+    };
+
+    window.addEventListener("orders_updated", refreshOrders);
+    return () => window.removeEventListener("orders_updated", refreshOrders);
+  }, [auth.isAuthenticated]);
 
   useEffect(() => {
     const handleAuthExpired = () => {
@@ -1031,6 +1048,68 @@ function AdminPage() {
       nextCvs[cvIdx] = targetCv;
       return { ...prev, colorVariants: nextCvs };
     });
+  };
+
+  const handleUpdateSizePrice = (cvIdx, size, priceVal) => {
+    setProductForm((prev) => {
+      const nextCvs = [...(prev.colorVariants || [])];
+      const targetCv = { ...nextCvs[cvIdx] };
+      const nextInventory = (targetCv.inventory || []).map((inv) => {
+        if (inv.size === size) {
+          return {
+            ...inv,
+            price: priceVal === "" ? "" : Math.max(0, parseFloat(priceVal) || 0),
+          };
+        }
+        return inv;
+      });
+      targetCv.inventory = nextInventory;
+      nextCvs[cvIdx] = targetCv;
+      return { ...prev, colorVariants: nextCvs };
+    });
+  };
+
+  const handleUpdateSizeMrp = (cvIdx, size, mrpVal) => {
+    setProductForm((prev) => {
+      const nextCvs = [...(prev.colorVariants || [])];
+      const targetCv = { ...nextCvs[cvIdx] };
+      const nextInventory = (targetCv.inventory || []).map((inv) => {
+        if (inv.size === size) {
+          return {
+            ...inv,
+            mrp: mrpVal === "" ? "" : Math.max(0, parseFloat(mrpVal) || 0),
+          };
+        }
+        return inv;
+      });
+      targetCv.inventory = nextInventory;
+      nextCvs[cvIdx] = targetCv;
+      return { ...prev, colorVariants: nextCvs };
+    });
+  };
+
+  const handleApplyBasePriceToAllSizes = (cvIdx) => {
+    const baseP = productForm.price !== "" && !isNaN(Number(productForm.price)) ? Number(productForm.price) : "";
+    const baseM = productForm.mrp !== "" && !isNaN(Number(productForm.mrp)) ? Number(productForm.mrp) : (baseP || "");
+    
+    if (baseP === "") {
+      alert("Please set a Base Selling Price in 'Pricing & Stock' tab first.");
+      return;
+    }
+
+    setProductForm((prev) => {
+      const nextCvs = [...(prev.colorVariants || [])];
+      const targetCv = { ...nextCvs[cvIdx] };
+      const nextInventory = (targetCv.inventory || []).map((inv) => ({
+        ...inv,
+        price: baseP,
+        mrp: baseM || baseP,
+      }));
+      targetCv.inventory = nextInventory;
+      nextCvs[cvIdx] = targetCv;
+      return { ...prev, colorVariants: nextCvs };
+    });
+    showNotification(`Applied base price (₹${baseP}) to all sizes for ${productForm.colorVariants?.[cvIdx]?.displayName || "this color"}!`);
   };
 
   // Size Chart Image Upload
@@ -1484,8 +1563,12 @@ function AdminPage() {
           ...cv,
           inventory: (cv.inventory || []).map((inv) => ({
             ...inv,
-            price: Number(productForm.price),
-            mrp: Number(productForm.mrp || productForm.price),
+            price: (inv.price !== undefined && inv.price !== "" && !isNaN(Number(inv.price)) && Number(inv.price) > 0)
+              ? Number(inv.price)
+              : Number(productForm.price),
+            mrp: (inv.mrp !== undefined && inv.mrp !== "" && !isNaN(Number(inv.mrp)) && Number(inv.mrp) > 0)
+              ? Number(inv.mrp)
+              : Number(productForm.mrp || productForm.price),
           })),
         })),
         prints: Array.isArray(productForm.prints) ? productForm.prints : [],
@@ -1872,6 +1955,38 @@ function AdminPage() {
       return matchSearch && matchCat;
     });
   }, [productsList, productSearch, productCategoryFilter]);
+
+  // Products Pagination State & Helpers
+  const [productPage, setProductPage] = useState(1);
+  const [productPageSize, setProductPageSize] = useState(10);
+
+  // Reset page when search or category filter changes
+  useEffect(() => {
+    setProductPage(1);
+  }, [productSearch, productCategoryFilter]);
+
+  const effectivePageSize = productPageSize === "All" ? Math.max(1, filteredProducts.length) : Number(productPageSize);
+  const totalProductPages = Math.max(1, Math.ceil(filteredProducts.length / effectivePageSize));
+
+  const paginatedProducts = useMemo(() => {
+    if (productPageSize === "All") return filteredProducts;
+    const start = (productPage - 1) * Number(productPageSize);
+    return filteredProducts.slice(start, start + Number(productPageSize));
+  }, [filteredProducts, productPage, productPageSize]);
+
+  // Page Numbers Generator with Ellipsis
+  const getPaginationPageNumbers = (currentPage, totalPages) => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (currentPage <= 4) {
+      return [1, 2, 3, 4, 5, "...", totalPages];
+    }
+    if (currentPage >= totalPages - 3) {
+      return [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
+  };
 
   // Filtered Orders
   const filteredOrders = useMemo(() => {
@@ -2854,14 +2969,14 @@ function AdminPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {filteredProducts.length === 0 ? (
+                        {paginatedProducts.length === 0 ? (
                           <tr>
                             <td colSpan={7} className="p-8 text-center text-xs text-muted-foreground">
                               No baby clothing products found matching your search and filter criteria.
                             </td>
                           </tr>
                         ) : (
-                          filteredProducts.map((p) => {
+                          paginatedProducts.map((p) => {
                             const discount = p.discount || (p.mrp > p.price ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0);
                             const stockCount = p.stock !== undefined ? p.stock : 0;
                             const stockStatus = p.stockStatus || (stockCount <= 0 ? "Out of Stock" : (stockCount <= 10 ? "Low Stock" : "In Stock"));
@@ -3003,14 +3118,14 @@ function AdminPage() {
                                   <div className="flex items-center justify-end gap-1.5">
                                     <button
                                       onClick={() => handleOpenEditProduct(p)}
-                                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+                                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
                                       title="Edit Product"
                                     >
                                       <Edit className="h-4 w-4" />
                                     </button>
                                     <button
                                       onClick={() => setDeleteConfirmModal({ open: true, product: p })}
-                                      className="rounded-lg p-1.5 text-destructive/70 hover:bg-destructive/10 hover:text-destructive transition"
+                                      className="rounded-lg p-1.5 text-destructive/70 hover:bg-destructive/10 hover:text-destructive transition cursor-pointer"
                                       title="Delete Product"
                                     >
                                       <Trash2 className="h-4 w-4" />
@@ -3024,6 +3139,126 @@ function AdminPage() {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* ─── BOTTOM PAGINATION & VIEW MORE CONTROLS ─── */}
+                  {filteredProducts.length > 0 && (
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-t border-border bg-card/70 px-4 py-3.5 sm:px-6">
+                      
+                      {/* Left: Summary and Per Page Selector */}
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                        <span>
+                          Showing{" "}
+                          <strong className="text-foreground font-extrabold">
+                            {productPageSize === "All" ? 1 : Math.min((productPage - 1) * Number(productPageSize) + 1, filteredProducts.length)}
+                          </strong>{" "}
+                          to{" "}
+                          <strong className="text-foreground font-extrabold">
+                            {productPageSize === "All" ? filteredProducts.length : Math.min(productPage * Number(productPageSize), filteredProducts.length)}
+                          </strong>{" "}
+                          of <strong className="text-foreground font-extrabold">{filteredProducts.length}</strong> products
+                        </span>
+
+                        <div className="flex items-center gap-1.5 pl-2 border-l border-border">
+                          <span className="font-semibold text-muted-foreground">Per page:</span>
+                          <select
+                            value={productPageSize}
+                            onChange={(e) => {
+                              const val = e.target.value === "All" ? "All" : Number(e.target.value);
+                              setProductPageSize(val);
+                              setProductPage(1);
+                            }}
+                            className="rounded-xl border border-border bg-muted/40 px-2.5 py-1 text-xs font-bold outline-none focus:border-primary cursor-pointer hover:bg-muted/70 transition"
+                          >
+                            <option value={5}>5 / page</option>
+                            <option value={10}>10 / page</option>
+                            <option value={20}>20 / page</option>
+                            <option value={50}>50 / page</option>
+                            <option value="All">All ({filteredProducts.length})</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Right: Numeric Pagination & Next/Prev Controls */}
+                      {productPageSize !== "All" && totalProductPages > 1 && (
+                        <div className="flex items-center gap-1.5 flex-wrap justify-center sm:justify-end">
+                          
+                          {/* First Page Button */}
+                          <button
+                            type="button"
+                            onClick={() => setProductPage(1)}
+                            disabled={productPage === 1}
+                            className="rounded-xl border border-border bg-card p-2 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer shadow-2xs"
+                            title="First Page"
+                          >
+                            <ChevronsLeft className="h-3.5 w-3.5" />
+                          </button>
+
+                          {/* Previous Page Button */}
+                          <button
+                            type="button"
+                            onClick={() => setProductPage((p) => Math.max(1, p - 1))}
+                            disabled={productPage === 1}
+                            className="flex items-center gap-1 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer shadow-2xs"
+                            title="Previous Page"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Prev</span>
+                          </button>
+
+                          {/* Numeric Page Buttons (1, 2, 3...) */}
+                          <div className="flex items-center gap-1">
+                            {getPaginationPageNumbers(productPage, totalProductPages).map((pageNum, idx) => {
+                              if (pageNum === "...") {
+                                return (
+                                  <span key={`ellipsis-${idx}`} className="px-1.5 py-1 text-xs text-muted-foreground font-mono">
+                                    ...
+                                  </span>
+                                );
+                              }
+                              const isCurrent = productPage === pageNum;
+                              return (
+                                <button
+                                  key={pageNum}
+                                  type="button"
+                                  onClick={() => setProductPage(pageNum)}
+                                  className={`min-w-[32px] h-8 rounded-xl px-2.5 text-xs font-black transition cursor-pointer ${
+                                    isCurrent
+                                      ? "bg-primary text-primary-foreground shadow-md scale-105"
+                                      : "border border-border bg-card text-foreground hover:bg-muted hover:border-primary/50"
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Next Page Button */}
+                          <button
+                            type="button"
+                            onClick={() => setProductPage((p) => Math.min(totalProductPages, p + 1))}
+                            disabled={productPage === totalProductPages}
+                            className="flex items-center gap-1 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer shadow-2xs"
+                            title="Next Page"
+                          >
+                            <span className="hidden sm:inline">Next</span>
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </button>
+
+                          {/* Last Page Button */}
+                          <button
+                            type="button"
+                            onClick={() => setProductPage(totalProductPages)}
+                            disabled={productPage === totalProductPages}
+                            className="rounded-xl border border-border bg-card p-2 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer shadow-2xs"
+                            title="Last Page"
+                          >
+                            <ChevronsRight className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -3809,7 +4044,11 @@ function AdminPage() {
                         </thead>
                         <tbody className="divide-y divide-border/60">
                           {filteredCustomers.map((u, idx) => {
-                            const addr = u.shippingAddress || u.address || {};
+                            const stats = orderService.calculateCustomerStats(u, ordersList);
+                            const displayOrdersCount = Math.max(stats.ordersCount, u.ordersCount || 0, u.orders?.length || 0);
+                            const displayTotalSpent = Math.max(stats.totalSpent, u.totalSpent || 0);
+
+                            const addr = u.shippingAddress || u.address || (stats.orders[0]?.shippingAddress) || {};
                             const street = addr.street || addr.address || "";
                             const city = addr.city || "";
                             const state = addr.state || "";
@@ -3901,10 +4140,10 @@ function AdminPage() {
                                 <td className="px-4 py-3">
                                   <div>
                                     <span className="inline-block font-black text-foreground">
-                                      {u.ordersCount !== undefined ? u.ordersCount : u.orders?.length || 0} Orders
+                                      {displayOrdersCount} Orders
                                     </span>
                                     <p className="text-emerald-700 font-extrabold text-[11px] mt-0.5">
-                                      ₹{(u.totalSpent || 0).toLocaleString()} Spent
+                                      ₹{displayTotalSpent.toLocaleString()} Spent
                                     </p>
                                   </div>
                                 </td>
@@ -3937,7 +4176,14 @@ function AdminPage() {
                                     )}
                                     <button
                                       onClick={() => {
-                                        setSelectedCustomer(u);
+                                        const customerWithStats = {
+                                          ...u,
+                                          shippingAddress: addr,
+                                          orders: stats.orders.length > 0 ? stats.orders : u.orders || [],
+                                          ordersCount: displayOrdersCount,
+                                          totalSpent: displayTotalSpent,
+                                        };
+                                        setSelectedCustomer(customerWithStats);
                                         setCustomerModalOpen(true);
                                       }}
                                       className="inline-flex items-center gap-1 rounded-xl bg-primary/10 border border-primary/20 px-2.5 py-1.5 text-xs font-bold text-primary hover:bg-primary hover:text-primary-foreground transition cursor-pointer shadow-xs"
@@ -5914,56 +6160,132 @@ function AdminPage() {
                               {/* Size-wise Inventory Table for this Color (Full Width in card) */}
                               {Array.isArray(cv.inventory) && cv.inventory.length > 0 && (
                                 <div className="space-y-3 pt-2 border-t border-border">
-                                  <div className="flex items-center justify-between">
-                                    <label className="block text-xs font-black uppercase text-foreground flex items-center gap-1.5">
-                                      <Boxes className="h-3.5 w-3.5 text-primary" />
-                                      <span>Size-Wise Stock &amp; SKUs for {cv.displayName || cv.name}</span>
-                                    </label>
-                                    <span className="text-[11px] text-muted-foreground font-medium">
-                                      Total: {totalCvStock} units across {cv.inventory.length} size(s)
-                                    </span>
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-primary/5 p-3.5 rounded-2xl border border-primary/20">
+                                    <div className="space-y-0.5">
+                                      <label className="block text-xs font-black uppercase text-foreground flex items-center gap-1.5">
+                                        <IndianRupee className="h-4 w-4 text-primary" />
+                                        <span>Size-Wise Separate Pricing &amp; Stock for {cv.displayName || cv.name}</span>
+                                      </label>
+                                      <p className="text-[11px] text-muted-foreground">
+                                        Set separate prices per size (e.g. 1 Month = ₹700, 4 Months = ₹900). Blank fields default to Base Price (₹{productForm.price || 0}).
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className="text-[11px] text-muted-foreground font-semibold hidden md:inline">
+                                        {totalCvStock} units across {cv.inventory.length} size(s)
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApplyBasePriceToAllSizes(cvIdx)}
+                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-primary bg-background hover:bg-primary hover:text-primary-foreground border border-primary/30 rounded-xl px-3 py-1.5 transition cursor-pointer shadow-xs"
+                                        title="Copy the base product price to all sizes of this color"
+                                      >
+                                        <Sparkles className="h-3.5 w-3.5" />
+                                        <span>Apply Base Price (₹{productForm.price || 0})</span>
+                                      </button>
+                                    </div>
                                   </div>
+
                                   <div className="overflow-x-auto rounded-2xl border border-border">
                                     <table className="w-full text-left text-xs">
                                       <thead className="border-b border-border bg-muted/50 font-black uppercase text-muted-foreground text-[10px]">
                                         <tr>
-                                          <th className="px-4 py-2.5">Size</th>
-                                          <th className="px-4 py-2.5">Stock / Inventory *</th>
-                                          <th className="px-4 py-2.5">Variant SKU</th>
-                                          <th className="px-4 py-2.5">Stock Status</th>
+                                          <th className="px-3.5 py-2.5">Size</th>
+                                          <th className="px-3.5 py-2.5">Selling Price (₹) *</th>
+                                          <th className="px-3.5 py-2.5">MRP / Original (₹)</th>
+                                          <th className="px-3.5 py-2.5">Stock / Inventory *</th>
+                                          <th className="px-3.5 py-2.5">Variant SKU</th>
+                                          <th className="px-3.5 py-2.5">Status</th>
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-border bg-card">
                                         {cv.inventory.map((inv, invIdx) => {
                                           const stockNum = Number(inv.stock) || 0;
                                           const invStatus = stockNum <= 0 ? "Out of Stock" : (stockNum <= 5 ? "Low Stock" : "In Stock");
+                                          const hasCustomPrice = inv.price !== undefined && inv.price !== "" && !isNaN(Number(inv.price)) && Number(inv.price) > 0;
+                                          const hasCustomMrp = inv.mrp !== undefined && inv.mrp !== "" && !isNaN(Number(inv.mrp)) && Number(inv.mrp) > 0;
 
                                           return (
                                             <tr key={inv.size || invIdx} className="hover:bg-muted/15 transition">
-                                              <td className="px-4 py-2.5 font-black text-foreground text-xs sm:text-sm">
-                                                {inv.size}
+                                              <td className="px-3.5 py-2.5 font-black text-foreground text-xs sm:text-sm whitespace-nowrap">
+                                                <div className="flex items-center gap-1.5">
+                                                  <span>{inv.size}</span>
+                                                  {hasCustomPrice && (
+                                                    <span className="rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-mono text-[10px] px-1.5 py-0.5 border border-emerald-500/20 font-bold">
+                                                      ₹{inv.price}
+                                                    </span>
+                                                  )}
+                                                </div>
                                               </td>
-                                              <td className="px-4 py-2.5">
+                                              
+                                              {/* Selling Price per Size */}
+                                              <td className="px-3.5 py-2.5">
+                                                <div className="relative">
+                                                  <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={inv.price !== undefined ? inv.price : ""}
+                                                    onChange={(e) => handleUpdateSizePrice(cvIdx, inv.size, e.target.value)}
+                                                    placeholder={productForm.price ? `${productForm.price}` : "e.g. 700"}
+                                                    className={`w-28 sm:w-32 rounded-xl border bg-background px-3 py-1.5 text-xs font-bold outline-none transition focus:border-primary ${
+                                                      hasCustomPrice ? "border-primary bg-primary/5 text-primary font-black" : "border-border text-foreground"
+                                                    }`}
+                                                  />
+                                                  {!hasCustomPrice && productForm.price && (
+                                                    <span className="block text-[9px] text-muted-foreground mt-0.5">
+                                                      Base: ₹{productForm.price}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </td>
+
+                                              {/* MRP per Size */}
+                                              <td className="px-3.5 py-2.5">
+                                                <div className="relative">
+                                                  <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={inv.mrp !== undefined ? inv.mrp : ""}
+                                                    onChange={(e) => handleUpdateSizeMrp(cvIdx, inv.size, e.target.value)}
+                                                    placeholder={productForm.mrp || productForm.price ? `${productForm.mrp || productForm.price}` : "e.g. 999"}
+                                                    className={`w-28 sm:w-32 rounded-xl border bg-background px-3 py-1.5 text-xs font-semibold outline-none transition focus:border-primary ${
+                                                      hasCustomMrp ? "border-primary/60 bg-primary/5" : "border-border text-muted-foreground"
+                                                    }`}
+                                                  />
+                                                  {!hasCustomMrp && (productForm.mrp || productForm.price) && (
+                                                    <span className="block text-[9px] text-muted-foreground mt-0.5">
+                                                      Base: ₹{productForm.mrp || productForm.price}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </td>
+
+                                              {/* Stock Quantity */}
+                                              <td className="px-3.5 py-2.5">
                                                 <input
                                                   type="number"
                                                   min="0"
                                                   value={inv.stock}
                                                   onChange={(e) => handleUpdateSizeStock(cvIdx, inv.size, e.target.value)}
-                                                  className="w-32 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-bold outline-none focus:border-primary"
+                                                  className="w-24 sm:w-28 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-bold outline-none focus:border-primary"
                                                 />
                                               </td>
-                                              <td className="px-4 py-2.5">
+
+                                              {/* Variant SKU */}
+                                              <td className="px-3.5 py-2.5">
                                                 <input
                                                   type="text"
                                                   value={inv.sku}
                                                   onChange={(e) => handleUpdateSizeSku(cvIdx, inv.size, e.target.value)}
                                                   placeholder={`e.g. ${productForm.sku || "SUN"}-${inv.size}`}
-                                                  className="w-56 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-mono uppercase outline-none focus:border-primary"
+                                                  className="w-40 sm:w-48 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-mono uppercase outline-none focus:border-primary"
                                                 />
                                               </td>
-                                              <td className="px-4 py-2.5">
+
+                                              {/* Status Badge */}
+                                              <td className="px-3.5 py-2.5">
                                                 <span
-                                                  className={`inline-block rounded-full px-3 py-0.5 text-[10px] font-black uppercase ${invStatus === "In Stock"
+                                                  className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase whitespace-nowrap ${invStatus === "In Stock"
                                                     ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
                                                     : invStatus === "Low Stock"
                                                       ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
@@ -6272,18 +6594,10 @@ function AdminPage() {
                                   onChange={(e) => {
                                     const newPrice = e.target.value;
                                     const newMrp = productForm.mrp || newPrice;
-                                    const updatedVariants = (productForm.colorVariants || []).map((cv) => ({
-                                      ...cv,
-                                      inventory: (cv.inventory || []).map((inv) => ({
-                                        ...inv,
-                                        price: newPrice !== "" ? Number(newPrice) : "",
-                                      })),
-                                    }));
                                     setProductForm({
                                       ...productForm,
                                       price: newPrice,
                                       discount: calcDiscount(newPrice, newMrp),
-                                      colorVariants: updatedVariants,
                                     });
                                   }}
                                   placeholder="599"
@@ -6302,18 +6616,10 @@ function AdminPage() {
                                   value={productForm.mrp}
                                   onChange={(e) => {
                                     const newMrp = e.target.value;
-                                    const updatedVariants = (productForm.colorVariants || []).map((cv) => ({
-                                      ...cv,
-                                      inventory: (cv.inventory || []).map((inv) => ({
-                                        ...inv,
-                                        mrp: newMrp !== "" ? Number(newMrp) : "",
-                                      })),
-                                    }));
                                     setProductForm({
                                       ...productForm,
                                       mrp: newMrp,
                                       discount: calcDiscount(productForm.price, newMrp),
-                                      colorVariants: updatedVariants,
                                     });
                                   }}
                                   placeholder="799"
@@ -7641,21 +7947,28 @@ function AdminPage() {
                     {selectedOrder.items?.map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between py-2.5">
                         <div className="flex items-center gap-3">
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="h-12 w-12 rounded-xl object-cover border border-border shrink-0"
-                          />
+                          {item.image ? (
+                            <img
+                              src={item.image}
+                              alt={item.name}
+                              className="h-12 w-12 rounded-xl object-cover border border-border shrink-0 bg-muted"
+                            />
+                          ) : (
+                            <div className="h-12 w-12 rounded-xl bg-secondary text-primary font-bold text-lg flex items-center justify-center shrink-0 border border-border">
+                              👶
+                            </div>
+                          )}
                           <div>
                             <p className="text-sm font-bold">{item.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              Qty: {item.quantity} {item.size ? `• Size: ${item.size}` : ""}{" "}
-                              {item.color ? `• Color: ${item.color}` : ""}
+                              Qty: {item.quantity || 1}{" "}
+                              {(item.selectedSize || item.size) ? `• Size: ${item.selectedSize || item.size}` : ""}{" "}
+                              {(item.selectedColor || item.color) ? `• Color: ${item.selectedColor || item.color}` : ""}
                             </p>
                           </div>
                         </div>
                         <span className="font-extrabold text-sm">
-                          ₹{item.price * item.quantity}
+                          ₹{(item.price || 0) * (item.quantity || 1)}
                         </span>
                       </div>
                     ))}
@@ -7959,10 +8272,10 @@ function AdminPage() {
                                 })}
                               </td>
                               <td className="px-3.5 py-2.5 text-foreground font-semibold">
-                                {ord.itemsCount} {ord.itemsCount === 1 ? "item" : "items"}
+                                {ord.itemsCount || ord.items?.length || 1} {(ord.itemsCount || ord.items?.length || 1) === 1 ? "item" : "items"}
                               </td>
                               <td className="px-3.5 py-2.5 font-black text-foreground">
-                                ₹{ord.totalAmount}
+                                ₹{ord.totalAmount || 0}
                               </td>
                               <td className="px-3.5 py-2.5">
                                 <span

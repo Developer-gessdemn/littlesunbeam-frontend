@@ -34,6 +34,7 @@ import {
 
 
 import hero from "@/assets/hero-baby.jpg";
+import founderImg from "@/assets/founder.png";
 
 import { useShop } from "@/context/ShopContext.jsx";
 
@@ -566,7 +567,7 @@ function Home() {
         <section className="mx-auto max-w-7xl px-4 py-8">
           <div className="overflow-hidden rounded-2xl sm:rounded-3xl border border-border/80 bg-card shadow-[var(--shadow-lift)] md:grid md:grid-cols-2">
             <div className="relative h-64 sm:h-80 md:h-full min-h-[280px] overflow-hidden bg-muted">
-              <img src={hero} alt="Little Sunbeam Baby" className="h-full w-full object-cover object-center transition-transform duration-700 hover:scale-105" />
+              <img src={founderImg} alt="Little Sunbeam Founder" className="h-full w-full object-cover object-top transition-transform duration-700 hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent md:hidden" />
               <div className="absolute bottom-3 left-3 md:hidden">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 dark:bg-card/90 px-3 py-1 text-xs font-bold text-foreground backdrop-blur-xs shadow-sm">

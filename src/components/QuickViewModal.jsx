@@ -81,6 +81,46 @@ export default function QuickViewModal({ product, open, onClose }) {
 
   const wishlisted = isWishlisted(product?.id);
 
+  const activeCv = useMemo(() => {
+    if (!product || !Array.isArray(product.colorVariants)) return null;
+    return (
+      product.colorVariants.find(
+        (cv) => (cv.name || "").toLowerCase() === (selectedColor || "").toLowerCase()
+      ) || product.colorVariants[0] || null
+    );
+  }, [product, selectedColor]);
+
+  const activeInventoryItem = useMemo(() => {
+    if (activeCv && Array.isArray(activeCv.inventory)) {
+      return activeCv.inventory.find(
+        (inv) => (inv.size || "").toLowerCase() === (selectedSize || "").toLowerCase()
+      );
+    }
+    return null;
+  }, [activeCv, selectedSize]);
+
+  const currentPrice = useMemo(() => {
+    if (
+      activeInventoryItem?.price !== undefined &&
+      !isNaN(Number(activeInventoryItem.price)) &&
+      Number(activeInventoryItem.price) > 0
+    ) {
+      return Number(activeInventoryItem.price);
+    }
+    return Number(product?.price || 0);
+  }, [activeInventoryItem, product?.price]);
+
+  const currentMrp = useMemo(() => {
+    if (
+      activeInventoryItem?.mrp !== undefined &&
+      !isNaN(Number(activeInventoryItem.mrp)) &&
+      Number(activeInventoryItem.mrp) > 0
+    ) {
+      return Number(activeInventoryItem.mrp);
+    }
+    return Number(product?.mrp || product?.price || 0);
+  }, [activeInventoryItem, product?.mrp, product?.price]);
+
   // Early return AFTER all hooks
   if (!open || !product) return null;
   const reviewsCountVal = product.reviewCount !== undefined ? Number(product.reviewCount) : 0;
@@ -93,6 +133,8 @@ export default function QuickViewModal({ product, open, onClose }) {
     const success = addToCart(
       {
         ...product,
+        price: currentPrice,
+        mrp: currentMrp,
         variant: `${selectedColor} / ${selectedSize}`,
         selectedColor,
         selectedSize, 
@@ -110,6 +152,8 @@ export default function QuickViewModal({ product, open, onClose }) {
     const success = addToCart(
       {
         ...product,
+        price: currentPrice,
+        mrp: currentMrp,
         variant: `${selectedColor} / ${selectedSize}`,
         selectedColor,
         selectedSize,
@@ -333,12 +377,12 @@ export default function QuickViewModal({ product, open, onClose }) {
               <div className="flex flex-col">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Price</span>
                 <span className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
-                  ₹{Number(product.price).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  ₹{Number(currentPrice).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </span>
               </div>
-              {product.mrp && product.mrp > product.price && (
+              {currentMrp && currentMrp > currentPrice && (
                 <div className="mb-1 text-xs sm:text-sm font-bold text-muted-foreground line-through">
-                  ₹{Number(product.mrp).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  ₹{Number(currentMrp).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </div>
               )}
             </div>
@@ -388,24 +432,60 @@ export default function QuickViewModal({ product, open, onClose }) {
             </div>
 
             {/* Size */}
-            <div className="pt-1">
-              <label className="block text-[11px] sm:text-xs font-extrabold text-neutral-900 uppercase tracking-wider mb-1.5">
-                Available Size
-              </label>
+            <div className="pt-1 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-500">SIZE</span>
+                <span className="h-3.5 w-px bg-neutral-200" />
+                <span className="text-xs font-bold text-neutral-900">{selectedSize}</span>
+              </div>
               <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                {sizes.map((sz) => (
-                  <button
-                    key={sz}
-                    onClick={() => setSelectedSize(sz)}
-                    className={`rounded-full px-3 py-1 sm:px-4 sm:py-1.5 text-xs font-extrabold transition-all cursor-pointer ${
-                      selectedSize === sz
-                        ? "bg-black text-white shadow-xs"
-                        : "border border-neutral-300 bg-white text-neutral-800 hover:border-black"
-                    }`}
-                  >
-                    {sz}
-                  </button>
-                ))}
+                {sizes.map((sz) => {
+                  const szInv = activeCv && Array.isArray(activeCv.inventory)
+                    ? activeCv.inventory.find((inv) => (inv.size || "").toLowerCase() === sz.toLowerCase())
+                    : null;
+                  const customSzPrice = szInv?.price !== undefined && !isNaN(Number(szInv.price)) && Number(szInv.price) > 0 ? Number(szInv.price) : null;
+                  const szStock = szInv ? Number(szInv.stock) : 50;
+                  const isSzOOS = szStock <= 0;
+                  const isSzLow = !isSzOOS && szStock <= 5;
+                  const isSelected = selectedSize === sz;
+
+                  return (
+                    <button
+                      key={sz}
+                      disabled={isSzOOS}
+                      onClick={() => !isSzOOS && setSelectedSize(sz)}
+                      className={`relative flex flex-col items-center justify-center gap-0.5 min-w-[54px] rounded-xl px-2.5 py-2 transition-all duration-200
+                        ${isSelected
+                          ? "bg-neutral-900 text-white shadow-md ring-2 ring-neutral-900 ring-offset-1 scale-[1.04]"
+                          : isSzOOS
+                            ? "border border-dashed border-neutral-200 bg-neutral-50 text-neutral-300 cursor-not-allowed"
+                            : "border border-neutral-200 bg-white text-neutral-800 hover:border-neutral-800 hover:shadow-sm cursor-pointer"
+                        }`}
+                    >
+                      <span className={`text-[10px] font-extrabold leading-tight text-center whitespace-nowrap ${isSelected ? "text-white" : isSzOOS ? "text-neutral-300" : "text-neutral-900"}`}>
+                        {sz}
+                      </span>
+                      {customSzPrice && !isSzOOS && (
+                        <span className={`text-[9px] font-bold leading-none ${isSelected ? "text-amber-300" : "text-emerald-600"}`}>
+                          ₹{customSzPrice}
+                        </span>
+                      )}
+                      {isSzOOS && (
+                        <span className="absolute inset-x-2 top-1/2 -translate-y-1/2 h-px bg-neutral-300 rotate-[-20deg] rounded-full" />
+                      )}
+                      {isSzLow && !isSelected && (
+                        <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-amber-400 border-2 border-white shadow-sm" />
+                      )}
+                      {isSelected && (
+                        <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white shadow-md">
+                          <svg className="h-2 w-2 text-neutral-900" viewBox="0 0 10 10" fill="none">
+                            <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

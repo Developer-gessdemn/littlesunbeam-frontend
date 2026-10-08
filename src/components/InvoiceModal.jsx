@@ -287,9 +287,9 @@ export default function InvoiceModal({ order, isOpen, onClose, storeInfo }) {
                           )}
                           <div className="min-w-0">
                             <p className="font-bold text-foreground leading-tight">{it.name}</p>
-                            {(it.size || it.color) && (
+                            {((it.selectedSize || it.size) || (it.selectedColor || it.color)) && (
                               <p className="text-[11px] font-semibold text-primary mt-1 flex items-center gap-1.5">
-                                {[it.size ? `Size: ${it.size}` : "", it.color ? `Color: ${it.color}` : ""]
+                                {[(it.selectedSize || it.size) ? `Size: ${it.selectedSize || it.size}` : "", (it.selectedColor || it.color) ? `Color: ${it.selectedColor || it.color}` : ""]
                                   .filter(Boolean)
                                   .join(" • ")}
                               </p>

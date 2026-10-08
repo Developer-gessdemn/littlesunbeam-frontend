@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useShop } from "@/context/ShopContext.jsx";
 import { adminService } from "@/lib/adminService.js";
+import { orderService } from "@/lib/orderService.js";
 import SiteHeader from "@/components/SiteHeader.jsx";
 import SiteFooter from "@/components/SiteFooter.jsx";
 import lsbLogo from "@/assets/LSB_Logo1.jpg";
@@ -80,25 +81,32 @@ function CheckoutPage() {
 
   const [authForm, setAuthForm] = useState({ name: "", email: "", phone: "", password: "" });
 
-  const getSavedAddressFromStorage = () => {
+  const getSavedAddressFromStorage = (cust = customer) => {
+    if (!cust) return null;
+    const uKey = cust._id || cust.id || cust.email || "";
     try {
-      const stored = localStorage.getItem("little_sunbeam_saved_address");
-      if (stored) return JSON.parse(stored);
+      if (uKey) {
+        const userStored = localStorage.getItem(`little_sunbeam_saved_address_${uKey}`);
+        if (userStored) return JSON.parse(userStored);
+      }
     } catch { }
+    const userAddr = cust.shippingAddress || cust.address;
+    if (userAddr && (userAddr.street || userAddr.address || userAddr.city)) {
+      return userAddr;
+    }
     return null;
   };
 
-  const storedLocalAddr = getSavedAddressFromStorage();
-
   const [shippingForm, setShippingForm] = useState(() => {
+    const custAddr = getSavedAddressFromStorage(customer);
     return {
-      name: customer?.name || customer?.shippingAddress?.name || customer?.address?.name || storedLocalAddr?.name || "",
-      email: customer?.email || customer?.shippingAddress?.email || customer?.address?.email || storedLocalAddr?.email || "",
-      phone: customer?.phone || customer?.shippingAddress?.phone || customer?.address?.phone || storedLocalAddr?.phone || "",
-      address: customer?.shippingAddress?.street || customer?.shippingAddress?.address || customer?.address?.street || customer?.address?.address || storedLocalAddr?.street || storedLocalAddr?.address || "",
-      city: customer?.shippingAddress?.city || customer?.address?.city || storedLocalAddr?.city || "",
-      state: customer?.shippingAddress?.state || customer?.address?.state || storedLocalAddr?.state || "",
-      pincode: customer?.shippingAddress?.pincode || customer?.address?.pincode || storedLocalAddr?.pincode || "",
+      name: customer?.name || custAddr?.name || "",
+      email: customer?.email || custAddr?.email || "",
+      phone: customer?.phone || custAddr?.phone || "",
+      address: custAddr?.street || custAddr?.address || "",
+      city: custAddr?.city || "",
+      state: custAddr?.state || "",
+      pincode: custAddr?.pincode || "",
     };
   });
 
@@ -213,21 +221,22 @@ function CheckoutPage() {
   useEffect(() => {
     if (isCustomerLoggedIn && customer) {
       if (step === "auth") setStep("shipping");
-      const localAddr = getSavedAddressFromStorage();
+      const custAddr = getSavedAddressFromStorage(customer);
       setShippingForm((prev) => {
         const updated = {
-          ...prev,
-          name: prev.name || customer.name || customer.shippingAddress?.name || customer.address?.name || localAddr?.name || "",
-          email: prev.email || customer.email || customer.shippingAddress?.email || customer.address?.email || localAddr?.email || "",
-          phone: prev.phone || customer.phone || customer.shippingAddress?.phone || customer.address?.phone || localAddr?.phone || "",
-          address: prev.address || customer.shippingAddress?.street || customer.shippingAddress?.address || customer.address?.street || customer.address?.address || localAddr?.street || localAddr?.address || "",
-          city: prev.city || customer.shippingAddress?.city || customer.address?.city || localAddr?.city || "",
-          state: prev.state || customer.shippingAddress?.state || customer.address?.state || localAddr?.state || "",
-          pincode: prev.pincode || customer.shippingAddress?.pincode || customer.address?.pincode || localAddr?.pincode || "",
+          name: prev.name || customer.name || custAddr?.name || "",
+          email: prev.email || customer.email || custAddr?.email || "",
+          phone: prev.phone || customer.phone || custAddr?.phone || "",
+          address: prev.address || custAddr?.street || custAddr?.address || "",
+          city: prev.city || custAddr?.city || "",
+          state: prev.state || custAddr?.state || "",
+          pincode: prev.pincode || custAddr?.pincode || "",
         };
         const complete = Boolean(updated.name && updated.address && updated.city && updated.pincode);
         if (complete && isEditingAddress) {
           setIsEditingAddress(false);
+        } else if (!complete && !isEditingAddress) {
+          setIsEditingAddress(true);
         }
         return updated;
       });
@@ -285,8 +294,12 @@ function CheckoutPage() {
       country: "India",
     };
 
-    // Cache locally for instant re-use across sessions
+    // Cache locally for this specific user
     try {
+      const uKey = customer?._id || customer?.id || customer?.email || "";
+      if (uKey) {
+        localStorage.setItem(`little_sunbeam_saved_address_${uKey}`, JSON.stringify(fullAddr));
+      }
       localStorage.setItem("little_sunbeam_saved_address", JSON.stringify(fullAddr));
     } catch { }
 
@@ -363,7 +376,7 @@ function CheckoutPage() {
 
       if (isCod) {
         // Direct order creation for Cash on Delivery
-        const result = await adminService.createCustomerOrder(baseOrderPayload);
+        const result = await orderService.createCustomerOrder(baseOrderPayload);
         setPlacedOrder(result.order);
         setStep("success");
         clearCart();
@@ -377,21 +390,17 @@ function CheckoutPage() {
         throw new Error("Unable to load Razorpay payment gateway. Please check your internet connection.");
       }
 
-      // 1. Create Razorpay order on backend (only if backend keys match frontend keys)
+      // 1. Create Razorpay order on backend with auto-capture enabled
       let rzpOrderData = null;
-      const envKey = import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_TaDwCOE6e7ioNi";
-      const usingLiveKey = envKey.startsWith("rzp_live_");
-
-      if (!usingLiveKey) {
-        // Only call backend order creation in test/dev mode — avoids key mismatch
-        try {
-          rzpOrderData = await adminService.createRazorpayOrder({ amount: total });
-        } catch (orderErr) {
-          console.warn("[Razorpay Order] Backend order creation failed, falling back to direct checkout:", orderErr.message);
-        }
+      try {
+        rzpOrderData = await orderService.createRazorpayOrder({ amount: total });
+      } catch (orderErr) {
+        console.warn("[Razorpay Order] Backend order creation failed, falling back to direct checkout:", orderErr.message);
       }
 
-      const keyId = envKey;
+      const liveKey = import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_TaDwCOE6e7ioNi";
+      const isRzpDataLive = Boolean(rzpOrderData?.keyId && !rzpOrderData.keyId.startsWith("rzp_test_"));
+      const keyId = isRzpDataLive ? rzpOrderData.keyId : liveKey;
 
       // 2. Configure Razorpay modal
       const logoUrl = typeof window !== "undefined"
@@ -400,25 +409,38 @@ function CheckoutPage() {
             : `${window.location.origin}/LSB_Logo1.jpg`)
         : "/LSB_Logo1.jpg";
 
+      const rawPhone = (shippingForm.phone || customer?.phone || "").replace(/\D/g, "");
+      const cleanPhone = rawPhone.length >= 10 ? rawPhone.slice(-10) : rawPhone;
+
       const options = {
         key: keyId,
-        amount: rzpOrderData ? rzpOrderData.amount : Math.round(total * 100),
+        amount: rzpOrderData ? rzpOrderData.amount : Math.max(100, Math.round(total * 100)),
         currency: rzpOrderData?.currency || "INR",
         name: "Little Sunbeam",
         description: `Baby Clothing & Essentials (${cart.length} items)`,
         image: LSB_LOGO_BASE64 || logoUrl,
-        // Only pass order_id if we have a valid backend order (keys match)
-        ...(rzpOrderData?.orderId ? { order_id: rzpOrderData.orderId } : {}),
+        // Pass the Razorpay Order ID for auto-capture and order linking in dashboard
+        ...(isRzpDataLive && rzpOrderData?.orderId ? { order_id: rzpOrderData.orderId } : {}),
         prefill: {
-          name: shippingForm.name || customer?.name || "",
-          email: shippingForm.email || customer?.email || "",
-          contact: shippingForm.phone || customer?.phone || "",
+          name: (shippingForm.name || customer?.name || "").trim(),
+          email: (shippingForm.email || customer?.email || "").trim(),
+          contact: cleanPhone,
         },
         notes: {
           address: `${shippingForm.address}, ${shippingForm.city} - ${shippingForm.pincode}`,
+          ...(rzpOrderData?.orderId ? { razorpayOrderId: rzpOrderData.orderId } : {}),
         },
         theme: {
           color: "#0ea5e9", // Sky Blue
+        },
+        retry: {
+          enabled: true,
+        },
+        modal: {
+          confirm_close: true,
+          ondismiss: function () {
+            setIsPlacingOrder(false);
+          },
         },
         handler: async function (response) {
           try {
@@ -427,10 +449,10 @@ function CheckoutPage() {
               ...baseOrderPayload,
               paymentMethod: "Razorpay",
               razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_signature: response.razorpay_signature,
+              razorpay_order_id: response.razorpay_order_id || rzpOrderData?.orderId || "",
+              razorpay_signature: response.razorpay_signature || "",
             };
-            const result = await adminService.createCustomerOrder(verifiedPayload);
+            const result = await orderService.createCustomerOrder(verifiedPayload);
             setPlacedOrder(result.order);
             setStep("success");
             clearCart();
@@ -439,11 +461,6 @@ function CheckoutPage() {
           } finally {
             setIsPlacingOrder(false);
           }
-        },
-        modal: {
-          ondismiss: function () {
-            setIsPlacingOrder(false);
-          },
         },
       };
 
@@ -951,7 +968,7 @@ function CheckoutPage() {
                       </div>
                       <div className="flex justify-between font-extrabold text-foreground pt-1">
                         <span>Total Paid</span>
-                        <span className="text-primary font-black">₹{total.toLocaleString()}</span>
+                        <span className="text-primary font-black">₹{(placedOrder?.totalAmount !== undefined ? placedOrder.totalAmount : total).toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
