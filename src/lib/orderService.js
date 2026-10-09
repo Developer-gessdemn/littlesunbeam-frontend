@@ -342,7 +342,7 @@ export const orderService = {
   /**
    * Create Razorpay backend Order with auto-capture
    */
-  async createRazorpayOrder({ amount, currency = "INR" }) {
+  async createRazorpayOrder({ amount, currency = "INR", shippingAddress, items, subtotal }) {
     const customerToken = typeof localStorage !== "undefined" ? localStorage.getItem(CUSTOMER_TOKEN_KEY) : null;
     if (!customerToken) {
       throw new Error("Please log in to proceed with online payment.");
@@ -354,7 +354,7 @@ export const orderService = {
         "Content-Type": "application/json",
         Authorization: `Bearer ${customerToken}`,
       },
-      body: JSON.stringify({ amount, currency }),
+      body: JSON.stringify({ amount, currency, shippingAddress, items, subtotal }),
     });
 
     const data = await res.json().catch(() => ({}));
@@ -363,6 +363,33 @@ export const orderService = {
     }
 
     return data.data;
+  },
+
+  /**
+   * Sync and reconcile Razorpay payments
+   */
+  async syncRazorpayOrders(count = 50) {
+    const adminToken = typeof localStorage !== "undefined"
+      ? localStorage.getItem("little_sunbeam_admin_token") || localStorage.getItem("adminToken")
+      : null;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/orders/sync-razorpay?count=${count}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.data?.orders) {
+        saveLocalOrders(data.data.orders);
+      }
+      return data;
+    } catch (err) {
+      console.warn("[orderService] syncRazorpayOrders error:", err.message);
+      return { success: false, error: err.message };
+    }
   },
 
   /**

@@ -362,8 +362,8 @@ function ProductDetailsPage() {
   const ratingVal =
     reviewsCountVal > 0
       ? (reviewStats.averageRating !== null && reviewStats.averageRating !== undefined
-          ? reviewStats.averageRating
-          : product?.rating || 0)
+        ? reviewStats.averageRating
+        : product?.rating || 0)
       : 0;
   const categoryLabel = product?.categoryPill || product?.category || "";
   const skuCode = activeInventoryItem?.sku || product?.sku || "SUN-PROD";
@@ -666,8 +666,8 @@ function ProductDetailsPage() {
                             setTimeout(() => setIsSlidePaused(false), 5000);
                           }}
                           className={`relative aspect-square w-16 sm:w-full shrink-0 overflow-hidden rounded-2xl border-2 transition-all duration-200 bg-[#F9FAFB] cursor-pointer ${isSelected
-                              ? "border-black ring-2 ring-black/10 scale-[1.02] shadow-sm"
-                              : "border-neutral-200/90 opacity-70 hover:opacity-100 hover:border-neutral-400"
+                            ? "border-black ring-2 ring-black/10 scale-[1.02] shadow-sm"
+                            : "border-neutral-200/90 opacity-70 hover:opacity-100 hover:border-neutral-400"
                             }`}
                           aria-label={`Thumbnail ${idx + 1}`}
                         >
@@ -737,8 +737,8 @@ function ProductDetailsPage() {
                               setSelectedImgIndex(idx);
                             }}
                             className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${selectedImgIndex === idx
-                                ? "w-5 sm:w-6 bg-white shadow-xs"
-                                : "w-1.5 sm:w-2 bg-white/60 hover:bg-white"
+                              ? "w-5 sm:w-6 bg-white shadow-xs"
+                              : "w-1.5 sm:w-2 bg-white/60 hover:bg-white"
                               }`}
                             aria-label={`Slide ${idx + 1}`}
                           />
@@ -810,11 +810,10 @@ function ProductDetailsPage() {
                         {Array.from({ length: 5 }).map((_, i) => (
                           <Star
                             key={i}
-                            className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${
-                              i < Math.floor(ratingVal)
+                            className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${i < Math.floor(ratingVal)
                                 ? "fill-amber-400 text-amber-400"
                                 : "fill-neutral-200 text-neutral-200"
-                            }`}
+                              }`}
                           />
                         ))}
                       </div>
@@ -834,17 +833,17 @@ function ProductDetailsPage() {
               </div>
 
               {/* 4. Price Section */}
-              <div className="flex items-baseline gap-2.5 sm:gap-3 py-1 border-b border-neutral-100 pb-3.5 sm:pb-4 flex-wrap">
-                <span className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-neutral-900">
-                  ₹{currentPrice}.00
+              <div className="mt-3 flex items-center gap-3 flex-wrap">
+                <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-neutral-900">
+                  ₹{Number(currentPrice).toFixed(2)}
                 </span>
                 {currentMrp > currentPrice && (
-                  <span className="text-base sm:text-lg lg:text-xl font-bold text-neutral-400 line-through">
-                    ₹{currentMrp}.00
+                  <span className="text-base sm:text-lg font-bold text-neutral-400 line-through">
+                    ₹{Number(currentMrp).toFixed(2)}
                   </span>
                 )}
                 {discountPercentage > 0 && (
-                  <span className="rounded-full bg-emerald-50 px-2.5 sm:px-3 py-0.5 sm:py-1 text-[11px] sm:text-xs font-black text-emerald-700 border border-emerald-200/80">
+                  <span className="rounded-full bg-[#ECFDF5] px-3 py-1 text-xs font-black text-[#15803D] border border-emerald-200/60">
                     {discountPercentage}% OFF
                   </span>
                 )}
@@ -852,22 +851,25 @@ function ProductDetailsPage() {
 
               {/* 5. Short Description */}
               {product.description && (
-                <div>
-                  <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed line-clamp-3 break-words">
+                <div className="mt-3">
+                  <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed font-normal break-words line-clamp-3">
                     {product.description}
                   </p>
                 </div>
               )}
 
               {/* 6. Color Selector */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs">
+              <div className="mt-5 space-y-2.5">
+                <div className="flex items-center text-xs">
                   <span className="font-extrabold uppercase tracking-wider text-neutral-900">
-                    Color: <span className="font-bold text-neutral-700 capitalize">{activeCv?.displayName || selectedColor}</span>
+                    COLOR:
+                  </span>
+                  <span className="font-bold text-neutral-600 ml-1.5 capitalize">
+                    {activeCv?.displayName || activeCv?.name || selectedColor}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <div className="flex items-center gap-2.5 flex-wrap">
                   {colors.map((c) => {
                     const cKey = c.rawName || c.name;
                     const isSelected =
@@ -880,16 +882,16 @@ function ProductDetailsPage() {
                         type="button"
                         onClick={() => handleColorSelect(cKey)}
                         title={c.name}
-                        className={`group relative flex items-center gap-1.5 sm:gap-2 rounded-full border px-3 py-1.5 sm:px-3.5 sm:py-1.5 text-xs font-bold transition-all cursor-pointer ${isSelected
-                            ? "border-black bg-neutral-900 text-white shadow-sm ring-2 ring-black/10"
-                            : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
+                        className={`group relative flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all cursor-pointer ${isSelected
+                          ? "bg-[#2B3445] text-white shadow-sm border border-[#2B3445]"
+                          : "bg-white text-neutral-800 border border-neutral-200 hover:border-neutral-400"
                           }`}
                       >
                         <span
-                          className="h-3.5 w-3.5 rounded-full border border-black/10 shadow-2xs shrink-0"
+                          className="h-3.5 w-3.5 rounded-full border border-black/10 shrink-0"
                           style={{ backgroundColor: c.hex }}
                         />
-                        <span className="truncate max-w-[120px]">{c.name}</span>
+                        <span className="capitalize">{c.name}</span>
                       </button>
                     );
                   })}
@@ -897,22 +899,23 @@ function ProductDetailsPage() {
               </div>
 
               {/* 7. Size Selector & Size Guide */}
-              <div className="space-y-3">
+              <div className="mt-5 space-y-3">
                 {/* Header Row */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-extrabold uppercase tracking-widest text-neutral-500">
+                  <div className="flex items-center text-xs">
+                    <span className="font-extrabold uppercase tracking-wider text-neutral-900">
                       SIZE
                     </span>
-                    <span className="h-4 w-px bg-neutral-200" />
-                    <span className="text-sm font-bold text-neutral-900">{selectedSize}</span>
+                    <span className="font-medium text-neutral-500 ml-3">
+                      {selectedSize} {selectedSize ? "(Selected)" : ""}
+                    </span>
                   </div>
 
                   {showSizeGuideButton && (
                     <button
                       type="button"
                       onClick={() => setSizeGuideOpen(true)}
-                      className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-bold text-neutral-600 shadow-xs transition hover:border-black hover:text-black cursor-pointer"
+                      className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-bold text-neutral-600 shadow-2xs transition hover:border-black hover:text-black cursor-pointer"
                     >
                       <Ruler className="h-3 w-3" />
                       <span>{hasCustomSizeChart ? "Size Chart" : "Size Guide"}</span>
@@ -921,26 +924,25 @@ function ProductDetailsPage() {
                 </div>
 
                 {/* Size Cards Grid */}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2.5">
                   {sizes.map((sz) => {
                     const sizeInv =
                       activeCv && Array.isArray(activeCv.inventory)
                         ? activeCv.inventory.find(
-                            (inv) => (inv.size || "").toLowerCase() === sz.toLowerCase()
-                          )
+                          (inv) => (inv.size || "").toLowerCase() === sz.toLowerCase()
+                        )
                         : null;
                     const sizeStock = sizeInv
                       ? Number(sizeInv.stock)
                       : Number(product?.stock !== undefined ? product.stock : 50);
                     const isSizeOOS = sizeStock <= 0;
-                    const isLowStock = !isSizeOOS && sizeStock <= 5;
                     const isSelected = (selectedSize || "").toLowerCase() === sz.toLowerCase();
-                    const customSizePrice =
+                    const sizePrice =
                       sizeInv?.price !== undefined &&
-                      !isNaN(Number(sizeInv.price)) &&
-                      Number(sizeInv.price) > 0
+                        !isNaN(Number(sizeInv.price)) &&
+                        Number(sizeInv.price) > 0
                         ? Number(sizeInv.price)
-                        : null;
+                        : Number(product?.price || 0);
 
                     return (
                       <button
@@ -949,44 +951,34 @@ function ProductDetailsPage() {
                         disabled={isSizeOOS}
                         onClick={() => !isSizeOOS && setSelectedSize(sz)}
                         className={`
-                          group relative flex flex-col items-center justify-center gap-0.5
-                          min-w-[60px] rounded-2xl px-3 py-2.5 transition-all duration-200
+                          group relative flex flex-col items-center justify-center
+                          min-w-[84px] sm:min-w-[96px] rounded-xl px-4 py-2.5 transition-all duration-150
                           ${isSelected
-                            ? "bg-neutral-900 text-white shadow-lg shadow-neutral-900/20 scale-[1.04] ring-2 ring-neutral-900 ring-offset-1"
+                            ? "bg-[#2B3445] text-white border border-[#2B3445] shadow-sm"
                             : isSizeOOS
-                              ? "border border-dashed border-neutral-200 bg-neutral-50 text-neutral-300 cursor-not-allowed"
-                              : "border border-neutral-200 bg-white text-neutral-800 hover:border-neutral-800 hover:shadow-sm cursor-pointer"
+                              ? "border border-neutral-200/70 bg-[#F9FAFB] text-neutral-300 cursor-not-allowed opacity-60"
+                              : "border border-neutral-200 bg-white text-neutral-800 hover:border-neutral-400 hover:shadow-2xs cursor-pointer"
                           }
                         `}
                       >
                         {/* Size Label */}
-                        <span className={`text-[11px] font-extrabold leading-tight text-center whitespace-nowrap ${isSelected ? "text-white" : isSizeOOS ? "text-neutral-300" : "text-neutral-900"}`}>
+                        <span className={`text-xs sm:text-[13px] font-bold leading-tight text-center whitespace-nowrap ${
+                          isSelected ? "text-white" : isSizeOOS ? "text-neutral-400 line-through" : "text-neutral-900"
+                        }`}>
                           {sz}
                         </span>
 
-                        {/* Price Badge */}
-                        {customSizePrice && !isSizeOOS && (
-                          <span className={`text-[10px] font-bold leading-none ${isSelected ? "text-amber-300" : "text-emerald-600"}`}>
-                            ₹{customSizePrice}
-                          </span>
-                        )}
+                        {/* Price Sub-label */}
+                        <span className={`text-[11px] sm:text-xs font-semibold leading-tight mt-1 ${
+                          isSelected ? "text-neutral-200" : isSizeOOS ? "text-neutral-400 line-through" : "text-neutral-500"
+                        }`}>
+                          ₹{sizePrice}
+                        </span>
 
-                        {/* OOS Strikethrough Line */}
-                        {isSizeOOS && (
-                          <span className="absolute inset-x-2 top-1/2 -translate-y-1/2 h-px bg-neutral-300 rotate-[-20deg] rounded-full" />
-                        )}
-
-                        {/* Low Stock Dot */}
-                        {isLowStock && !isSelected && (
-                          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-400 border-2 border-white shadow-sm" />
-                        )}
-
-                        {/* Selected Checkmark */}
+                        {/* Selected Checkmark Badge (top-right corner) */}
                         {isSelected && (
-                          <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-white shadow-md">
-                            <svg className="h-2.5 w-2.5 text-neutral-900" viewBox="0 0 10 10" fill="none">
-                              <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
+                          <span className="absolute top-1.5 right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white text-[#2B3445] shadow-xs">
+                            <Check className="h-2.5 w-2.5 stroke-[3]" />
                           </span>
                         )}
                       </button>
@@ -994,27 +986,15 @@ function ProductDetailsPage() {
                   })}
                 </div>
 
-                {/* Stock Status Strip */}
-                <div className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-semibold border
-                  ${isCurrentVariantOutOfStock
-                    ? "bg-rose-50 border-rose-100 text-rose-700"
-                    : currentVariantStock <= 5
-                      ? "bg-amber-50 border-amber-100 text-amber-700"
-                      : "bg-emerald-50 border-emerald-100 text-emerald-700"
-                  }`}>
-                  {/* Animated pulse dot */}
-                  <span className="relative flex h-2 w-2 shrink-0">
-                    <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60
-                      ${isCurrentVariantOutOfStock ? "bg-rose-400" : currentVariantStock <= 5 ? "bg-amber-400" : "bg-emerald-400"}`} />
-                    <span className={`relative inline-flex h-2 w-2 rounded-full
-                      ${isCurrentVariantOutOfStock ? "bg-rose-500" : currentVariantStock <= 5 ? "bg-amber-500" : "bg-emerald-500"}`} />
-                  </span>
+                {/* Stock Status Urgency Strip */}
+                <div className="flex items-center gap-2 rounded-xl bg-[#FEF9E7] border border-[#FEF3C7] px-4 py-2.5 text-xs font-bold text-[#92400E]">
+                  <span className="text-sm shrink-0">🚚</span>
                   <span>
                     {isCurrentVariantOutOfStock
                       ? "This size is currently out of stock"
                       : currentVariantStock <= 5
-                        ? `🔥 Only ${currentVariantStock} left — grab it fast!`
-                        : `✓ In Stock — ${currentVariantStock} units ready to ship`}
+                        ? `Only ${currentVariantStock} left — grab it fast!`
+                        : `In Stock — ${currentVariantStock} units ready to ship`}
                   </span>
                 </div>
               </div>
@@ -1070,10 +1050,10 @@ function ProductDetailsPage() {
                   onClick={handleAddToCart}
                   disabled={isCurrentVariantOutOfStock}
                   className={`w-full rounded-full border-2 border-black py-3 sm:py-3.5 text-xs sm:text-sm font-black uppercase tracking-wider transition active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${added
-                      ? "bg-emerald-600 border-emerald-600 text-white"
-                      : isCurrentVariantOutOfStock
-                        ? "bg-neutral-100 border-neutral-300 text-neutral-400"
-                        : "bg-white text-black hover:bg-black hover:text-white"
+                    ? "bg-emerald-600 border-emerald-600 text-white"
+                    : isCurrentVariantOutOfStock
+                      ? "bg-neutral-100 border-neutral-300 text-neutral-400"
+                      : "bg-white text-black hover:bg-black hover:text-white"
                     }`}
                 >
                   {added ? "✓ ADDED TO CART" : isCurrentVariantOutOfStock ? "OUT OF STOCK" : "ADD TO CART"}
@@ -1381,8 +1361,8 @@ function ProductDetailsPage() {
                                 <Star
                                   key={i}
                                   className={`h-3.5 w-3.5 ${i < Math.floor(ratingVal)
-                                      ? "fill-amber-400 text-amber-400"
-                                      : "fill-neutral-200 text-neutral-200"
+                                    ? "fill-amber-400 text-amber-400"
+                                    : "fill-neutral-200 text-neutral-200"
                                     }`}
                                 />
                               ))}
@@ -1457,8 +1437,8 @@ function ProductDetailsPage() {
                                 >
                                   <Star
                                     className={`h-4 w-4 ${star <= newReviewRating
-                                        ? "fill-amber-400 text-amber-400"
-                                        : "fill-neutral-200 text-neutral-200"
+                                      ? "fill-amber-400 text-amber-400"
+                                      : "fill-neutral-200 text-neutral-200"
                                       }`}
                                   />
                                 </button>
@@ -1617,8 +1597,8 @@ function ProductDetailsPage() {
                                     <Star
                                       key={i}
                                       className={`h-3 w-3 ${i < (rev.rating || 5)
-                                          ? "fill-amber-400 text-amber-400"
-                                          : "fill-neutral-200 text-neutral-200"
+                                        ? "fill-amber-400 text-amber-400"
+                                        : "fill-neutral-200 text-neutral-200"
                                         }`}
                                     />
                                   ))}
@@ -1633,8 +1613,8 @@ function ProductDetailsPage() {
                                     type="button"
                                     onClick={() => handleVoteHelpful(rev)}
                                     className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 border transition cursor-pointer ${hasVotedHelpful
-                                        ? "border-amber-400 bg-amber-50 text-amber-800 font-bold"
-                                        : "border-neutral-200 hover:border-black hover:text-black"
+                                      ? "border-amber-400 bg-amber-50 text-amber-800 font-bold"
+                                      : "border-neutral-200 hover:border-black hover:text-black"
                                       }`}
                                   >
                                     <ThumbsUp className="h-2.5 w-2.5" />

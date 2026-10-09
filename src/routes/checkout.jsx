@@ -393,7 +393,12 @@ function CheckoutPage() {
       // 1. Create Razorpay order on backend with auto-capture enabled
       let rzpOrderData = null;
       try {
-        rzpOrderData = await orderService.createRazorpayOrder({ amount: total });
+        rzpOrderData = await orderService.createRazorpayOrder({
+          amount: total,
+          shippingAddress: baseOrderPayload.shippingAddress,
+          items: baseOrderPayload.items,
+          subtotal: baseOrderPayload.subtotal,
+        });
       } catch (orderErr) {
         console.warn("[Razorpay Order] Backend order creation failed, falling back to direct checkout:", orderErr.message);
       }

@@ -452,6 +452,27 @@ export const adminService = {
     }
   },
 
+  // Sync and reconcile Razorpay payments with backend
+  async syncRazorpayOrders(count = 50) {
+    try {
+      const res = await apiRequest(`/admin/orders/sync-razorpay?count=${count}`, {
+        method: "POST",
+      });
+      if (res.data?.orders && Array.isArray(res.data.orders)) {
+        saveLocalOrders(res.data.orders);
+      }
+      return {
+        success: true,
+        data: res.data,
+        message: res.message,
+        isLiveBackend: true,
+      };
+    } catch (err) {
+      console.warn("[adminService] syncRazorpayOrders error:", err.message);
+      return { success: false, error: err.message, isLiveBackend: false };
+    }
+  },
+
   async getRazorpayKey() {
     // Prefer the env var key (set at build time) — especially when it's a live key.
     // Only fall back to backend if no env var is set.

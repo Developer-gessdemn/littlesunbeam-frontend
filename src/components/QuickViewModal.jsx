@@ -137,7 +137,7 @@ export default function QuickViewModal({ product, open, onClose }) {
         mrp: currentMrp,
         variant: `${selectedColor} / ${selectedSize}`,
         selectedColor,
-        selectedSize, 
+        selectedSize,
       },
       qty
     );
@@ -196,7 +196,7 @@ export default function QuickViewModal({ product, open, onClose }) {
             <div className="flex flex-col sm:grid sm:grid-cols-12 gap-3 items-stretch">
 
               {/* Big Main Image (9 cols on sm+) */}
-              <div 
+              <div
                 className="sm:col-span-9 relative overflow-hidden rounded-2xl border border-neutral-200 bg-[#f8f9fa] shadow-xs group"
                 onMouseEnter={() => setIsSlidePaused(true)}
                 onMouseLeave={() => setIsSlidePaused(false)}
@@ -241,9 +241,8 @@ export default function QuickViewModal({ product, open, onClose }) {
                 {/* Wishlist Button Overlay */}
                 <button
                   onClick={() => toggleWishlist(product)}
-                  className={`absolute right-2.5 top-2.5 sm:right-3 sm:top-3 z-10 grid h-8 w-8 sm:h-9 sm:w-9 place-items-center rounded-full border border-neutral-200 bg-white/90 shadow backdrop-blur-xs transition hover:scale-110 cursor-pointer ${
-                    wishlisted ? "text-rose-500" : "text-neutral-600 hover:text-rose-500"
-                  }`}
+                  className={`absolute right-2.5 top-2.5 sm:right-3 sm:top-3 z-10 grid h-8 w-8 sm:h-9 sm:w-9 place-items-center rounded-full border border-neutral-200 bg-white/90 shadow backdrop-blur-xs transition hover:scale-110 cursor-pointer ${wishlisted ? "text-rose-500" : "text-neutral-600 hover:text-rose-500"
+                    }`}
                   aria-label="Wishlist"
                 >
                   <Heart className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill={wishlisted ? "currentColor" : "none"} />
@@ -257,11 +256,10 @@ export default function QuickViewModal({ product, open, onClose }) {
                     <button
                       key={idx}
                       onClick={() => setSelectedImgIndex(idx)}
-                      className={`relative w-14 sm:w-full aspect-square shrink-0 overflow-hidden rounded-xl border-2 transition-all ${
-                        selectedImgIndex === idx
+                      className={`relative w-14 sm:w-full aspect-square shrink-0 overflow-hidden rounded-xl border-2 transition-all ${selectedImgIndex === idx
                           ? "border-black ring-2 ring-black/10 scale-102"
                           : "border-neutral-200 opacity-75 hover:opacity-100"
-                      }`}
+                        }`}
                     >
                       <img
                         src={img}
@@ -281,9 +279,8 @@ export default function QuickViewModal({ product, open, onClose }) {
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`relative pb-2 text-sm sm:text-base font-extrabold tracking-tight transition-colors whitespace-nowrap ${
-                      activeTab === tab ? "text-black" : "text-neutral-400 hover:text-neutral-700"
-                    }`}
+                    className={`relative pb-2 text-sm sm:text-base font-extrabold tracking-tight transition-colors whitespace-nowrap ${activeTab === tab ? "text-black" : "text-neutral-400 hover:text-neutral-700"
+                      }`}
                   >
                     {tab}
                     {activeTab === tab && (
@@ -352,11 +349,10 @@ export default function QuickViewModal({ product, open, onClose }) {
                       {Array.from({ length: 5 }).map((_, i) => (
                         <Star
                           key={i}
-                          className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${
-                            i < Math.floor(Number(ratingVal))
+                          className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${i < Math.floor(Number(ratingVal))
                               ? "fill-amber-400 text-amber-400"
                               : "fill-neutral-200 text-neutral-200"
-                          }`}
+                            }`}
                         />
                       ))}
                     </div>
@@ -398,11 +394,10 @@ export default function QuickViewModal({ product, open, onClose }) {
                     <button
                       key={c.name}
                       onClick={() => setSelectedColor(c.name)}
-                      className={`h-6 w-6 sm:h-7 sm:w-7 rounded-full transition-all ${
-                        selectedColor === c.name
+                      className={`h-6 w-6 sm:h-7 sm:w-7 rounded-full transition-all ${selectedColor === c.name
                           ? "ring-2 ring-black ring-offset-2 scale-110"
                           : "border border-neutral-300 hover:scale-105"
-                      }`}
+                        }`}
                       style={{ backgroundColor: c.hex }}
                     />
                   ))}
@@ -479,7 +474,7 @@ export default function QuickViewModal({ product, open, onClose }) {
                       {isSelected && (
                         <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white shadow-md">
                           <svg className="h-2 w-2 text-neutral-900" viewBox="0 0 10 10" fill="none">
-                            <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         </span>
                       )}
@@ -500,11 +495,10 @@ export default function QuickViewModal({ product, open, onClose }) {
 
               <button
                 onClick={handleAddToCart}
-                className={`w-full rounded-full border-2 border-black py-3 sm:py-3.5 text-xs font-extrabold uppercase tracking-wider transition active:scale-98 cursor-pointer ${
-                  added
+                className={`w-full rounded-full border-2 border-black py-3 sm:py-3.5 text-xs font-extrabold uppercase tracking-wider transition active:scale-98 cursor-pointer ${added
                     ? "bg-emerald-600 border-emerald-600 text-white"
                     : "bg-white text-black hover:bg-black hover:text-white"
-                }`}
+                  }`}
               >
                 {added ? "✓ ADDED TO CART" : "ADD TO CART"}
               </button>

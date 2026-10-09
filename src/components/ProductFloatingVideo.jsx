@@ -84,13 +84,12 @@ export default function ProductFloatingVideo({ product }) {
             setIsOpen(true);
             setIsMinimized(false);
           }}
-          className="flex items-center gap-2 rounded-full bg-card/95 hover:bg-card text-foreground px-4 py-2.5 shadow-xl border border-primary/40 hover:border-primary backdrop-blur-md transition-all hover:scale-105 active:scale-95 group cursor-pointer"
+          className="flex items-center gap-2 rounded-full bg-white hover:bg-neutral-50 text-neutral-800 px-4 py-2 shadow-lg border border-neutral-200 backdrop-blur-md transition-all hover:scale-105 active:scale-95 group cursor-pointer"
         >
-          <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground grid place-items-center shadow-xs">
-            <Film className="h-3.5 w-3.5 animate-pulse" />
+          <div className="h-5 w-5 rounded-full bg-[#16A34A] text-white flex items-center justify-center shadow-xs">
+            <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
           </div>
-          <span className="text-xs font-black">Watch Product Video</span>
-          <span className="rounded-full bg-rose-500 h-2 w-2 animate-ping" />
+          <span className="text-xs font-bold">Watch Product Video</span>
         </button>
       </aside>
     );
