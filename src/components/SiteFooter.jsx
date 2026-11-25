@@ -17,6 +17,56 @@ export default function SiteFooter() {
   // Filter active categories for navbar navigation (without subcategory dropdowns)
   const activeNavCategories = (categories || []).filter((c) => c.isActive !== false);
 
+  const fallbackCategories = [
+    { key: "muslin", label: "Muslin Baby Clothing", search: { category: "muslin" } },
+    { key: "hospital", label: "Newborn Hospital Kits", search: { category: "hospital" } },
+    { key: "towels", label: "Baby Blankets & Towels", search: { category: "towels" } },
+    { key: "accessories", label: "Baby Accessories", search: { category: "accessories" } },
+    { key: "daily-wear", label: "Daily Wear Essentials", search: { category: "daily-wear" } },
+  ];
+
+  const essentialsItems = [
+    { key: "all-essentials", label: "All Essentials", search: undefined },
+    ...(activeNavCategories.length > 0
+      ? activeNavCategories.map((cat, idx) => {
+          const catParam = (cat.slug || cat.id || cat.name || "")
+            .toLowerCase()
+            .replace(/\s+/g, "-");
+          const catKey = cat._id || cat.id || cat.slug || cat.name || idx;
+          return { key: catKey, label: cat.name, search: { category: catParam } };
+        })
+      : fallbackCategories),
+  ];
+
+  // Split Baby Essentials into columns of 6 items each
+  const ITEMS_PER_COLUMN = 6;
+  const essentialsColumns = [];
+  for (let i = 0; i < essentialsItems.length; i += ITEMS_PER_COLUMN) {
+    essentialsColumns.push(essentialsItems.slice(i, i + ITEMS_PER_COLUMN));
+  }
+
+  const colCount = essentialsColumns.length;
+  const outerGridClass =
+    colCount >= 3
+      ? "mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-6"
+      : colCount === 2
+        ? "mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-5"
+        : "mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4";
+
+  const essentialsWrapperClass =
+    colCount >= 3
+      ? "sm:col-span-2 lg:col-span-3"
+      : colCount === 2
+        ? "sm:col-span-2 lg:col-span-2"
+        : "";
+
+  const essentialsInnerGridClass =
+    colCount >= 3
+      ? "mt-4 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3"
+      : colCount === 2
+        ? "mt-4 grid grid-cols-2 gap-x-6 gap-y-6"
+        : "mt-4";
+
   return (
     <footer className="mt-20 border-t border-border bg-secondary/50 font-sans">
       {/* Social Strip */}
@@ -42,7 +92,7 @@ export default function SiteFooter() {
         </a>
       </div>
 
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={outerGridClass}>
         {/* 1. Brand & About */}
         <div className="space-y-4">
           <Link to="/" className="flex items-center gap-2.5">
@@ -70,62 +120,26 @@ export default function SiteFooter() {
           </div>
         </div>
 
-        {/* 2. Main Navbar Navigation (All Categories without Subcategory Dropdowns) */}
-        <div>
+        {/* 2. Baby Essentials (6 items per column, overflow into additional columns) */}
+        <div className={essentialsWrapperClass}>
           <h4 className="text-xs font-extrabold uppercase tracking-wider text-foreground">Baby Essentials</h4>
-          <ul className="mt-4 space-y-2.5 text-xs text-muted-foreground">
-            <li>
-              <Link to="/shop" className="hover:text-primary transition-colors font-medium">
-                All Essentials
-              </Link>
-            </li>
-            {activeNavCategories.length > 0 ? (
-              activeNavCategories.map((cat, idx) => {
-                const catParam = (cat.slug || cat.id || cat.name || "").toLowerCase().replace(/\s+/g, "-");
-                const catKey = cat._id || cat.id || cat.slug || cat.name || idx;
-
-                return (
-                  <li key={catKey}>
+          <div className={essentialsInnerGridClass}>
+            {essentialsColumns.map((columnItems, colIdx) => (
+              <ul key={`essentials-col-${colIdx}`} className="space-y-2.5 text-xs text-muted-foreground">
+                {columnItems.map((item) => (
+                  <li key={item.key}>
                     <Link
                       to="/shop"
-                      search={{ category: catParam }}
+                      {...(item.search ? { search: item.search } : {})}
                       className="hover:text-primary transition-colors font-medium"
                     >
-                      {cat.name}
+                      {item.label}
                     </Link>
                   </li>
-                );
-              })
-            ) : (
-              <>
-                <li>
-                  <Link to="/shop" search={{ category: "muslin" }} className="hover:text-primary transition-colors font-medium">
-                    Muslin Baby Clothing
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/shop" search={{ category: "hospital" }} className="hover:text-primary transition-colors font-medium">
-                    Newborn Hospital Kits
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/shop" search={{ category: "towels" }} className="hover:text-primary transition-colors font-medium">
-                    Baby Blankets &amp; Towels
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/shop" search={{ category: "accessories" }} className="hover:text-primary transition-colors font-medium">
-                    Baby Accessories
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/shop" search={{ category: "daily-wear" }} className="hover:text-primary transition-colors font-medium">
-                    Daily Wear Essentials
-                  </Link>
-                </li>
-              </>
-            )}
-          </ul>
+                ))}
+              </ul>
+            ))}
+          </div>
         </div>
 
         {/* 3. Policies & Legal Info */}
