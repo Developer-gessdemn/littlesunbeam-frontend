@@ -18,7 +18,7 @@ import { useShop } from "@/context/ShopContext.jsx";
 import { isInstagramUrl, getInstagramEmbedUrl } from "@/lib/utils.js";
 
 export default function ProductFloatingVideo({ product }) {
-  const { addToCart } = useShop();
+  const { addToCart, setCartOpen } = useShop();
 
   const [isOpen, setIsOpen] = useState(true);
   const [isMinimized, setIsMinimized] = useState(true);
@@ -62,6 +62,7 @@ export default function ProductFloatingVideo({ product }) {
     addToCart(product);
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2200);
+    if (setCartOpen) setCartOpen(true);
   };
 
   const handleNextVideo = (e) => {

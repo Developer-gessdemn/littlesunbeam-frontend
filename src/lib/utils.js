@@ -89,5 +89,60 @@ export async function resolveInstagramVideoUrl(url) {
   return fallbackResult;
 }
 
+/**
+ * Standard Phone Number Validation & Sanitization Helpers
+ */
+export const PHONE_VALIDATION_ERROR = "Please enter a valid 10-digit mobile number.";
+
+export function sanitizePhoneNumber(value) {
+  if (!value) return "";
+  return String(value).replace(/\D/g, "").slice(0, 10);
+}
+
+export function isValidPhoneNumber(value) {
+  if (!value || typeof value !== "string") return false;
+  return /^\d{10}$/.test(value.trim());
+}
+
+export function handlePhoneKeyDown(e) {
+  // Allow control/action keys: Backspace, Tab, Enter, Escape, Arrow keys, Delete, Home, End
+  if (
+    [
+      "Backspace",
+      "Tab",
+      "Enter",
+      "Escape",
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown",
+      "Delete",
+      "Home",
+      "End",
+    ].includes(e.key) ||
+    // Allow keyboard shortcuts (Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X, Cmd+A, etc.)
+    e.ctrlKey ||
+    e.metaKey
+  ) {
+    return;
+  }
+
+  // Block any non-digit character (alphabets, symbols, spaces, etc.)
+  if (!/^\d$/.test(e.key)) {
+    e.preventDefault();
+  }
+}
+
+export function handlePhonePaste(e, onUpdate) {
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+  const cleaned = sanitizePhoneNumber(text);
+  if (onUpdate) {
+    onUpdate(cleaned);
+  }
+  return cleaned;
+}
+
+
 
 

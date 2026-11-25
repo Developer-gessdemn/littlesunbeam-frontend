@@ -664,10 +664,10 @@ function Shop() {
       </div>
 
       <main className="mx-auto max-w-7xl px-4 py-8">
-        <h1 className="text-3xl font-extrabold">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-foreground">
           Shop <span className="sun-underline">All Products</span>
         </h1>
-        <p className="mt-3 text-sm text-muted-foreground">
+        <p className="mt-3 text-sm sm:text-base text-muted-foreground font-medium">
           {loadingProducts ? "Loading live catalog..." : `${filtered.length} product${filtered.length === 1 ? "" : "s"} found`}
         </p>
 

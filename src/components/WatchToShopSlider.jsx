@@ -11,7 +11,7 @@ import { useShop } from "@/context/ShopContext.jsx";
 import ProductMediaCard from "@/components/ProductMediaCard.jsx";
 
 export default function WatchToShopSlider() {
-  const { products, addToCart, toggleWishlist, isWishlisted } = useShop();
+  const { products, addToCart, toggleWishlist, isWishlisted, setCartOpen } = useShop();
   const navigate = useNavigate();
 
   const scrollRef = useRef(null);
@@ -110,6 +110,7 @@ export default function WatchToShopSlider() {
 
   const handleAddToCart = (e, product) => {
     addToCart(product);
+    if (setCartOpen) setCartOpen(true);
   };
 
   const handleCardClick = (product) => {

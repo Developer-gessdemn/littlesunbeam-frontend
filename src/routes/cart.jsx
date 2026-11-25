@@ -55,35 +55,7 @@ function CartPage() {
           </div>
         </div>
 
-        {!isCustomerLoggedIn ? (
-          /* Not Logged In State */
-          <div className="flex flex-col items-center justify-center gap-4 py-16 px-4 bg-card rounded-3xl border border-border text-center shadow-xs max-w-xl mx-auto">
-            <div className="grid h-16 w-16 place-items-center rounded-full bg-muted text-primary">
-              <ShoppingBag className="h-8 w-8 text-primary" />
-            </div>
-            <div className="space-y-1">
-              <h2 className="text-xl font-extrabold">Please login to continue</h2>
-              <p className="text-xs sm:text-sm text-muted-foreground max-w-md">
-                Sign in to view your cart items, sync across your devices, and complete checkout.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-3 mt-2">
-              <button
-                type="button"
-                onClick={() => requireLogin("Please login to access your shopping cart.")}
-                className="rounded-full bg-primary text-primary-foreground px-7 py-3 text-xs sm:text-sm font-bold shadow-xs hover:bg-primary/90 transition cursor-pointer"
-              >
-                Sign In to Continue
-              </button>
-              <Link
-                to="/shop"
-                className="rounded-full bg-muted text-foreground px-7 py-3 text-xs sm:text-sm font-bold hover:bg-muted/80 transition inline-flex items-center gap-2"
-              >
-                Browse Products <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
-        ) : cart.length === 0 ? (
+        {cart.length === 0 ? (
           /* Empty Cart State */
           <div className="flex flex-col items-center justify-center gap-4 py-16 px-4 bg-card rounded-3xl border border-border text-center shadow-xs max-w-xl mx-auto">
             <div className="grid h-16 w-16 place-items-center rounded-full bg-muted text-muted-foreground">
@@ -93,12 +65,23 @@ function CartPage() {
               <h2 className="text-xl font-extrabold">Your cart is empty</h2>
               <p className="text-xs sm:text-sm text-muted-foreground">Looks like you haven't added anything yet!</p>
             </div>
-            <Link
-              to="/shop"
-              className="mt-2 rounded-full bg-primary text-primary-foreground px-8 py-3 text-xs sm:text-sm font-bold shadow-xs hover:bg-primary/90 transition inline-flex items-center gap-2"
-            >
-              Start Shopping <ArrowRight className="h-4 w-4" />
-            </Link>
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-2">
+              <Link
+                to="/shop"
+                className="rounded-full bg-primary text-primary-foreground px-8 py-3 text-xs sm:text-sm font-bold shadow-xs hover:bg-primary/90 transition inline-flex items-center gap-2"
+              >
+                Start Shopping <ArrowRight className="h-4 w-4" />
+              </Link>
+              {!isCustomerLoggedIn && (
+                <button
+                  type="button"
+                  onClick={() => requireLogin("Sign in to sync your saved items.")}
+                  className="rounded-full bg-muted text-foreground px-7 py-3 text-xs sm:text-sm font-bold hover:bg-muted/80 transition"
+                >
+                  Sign In
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">

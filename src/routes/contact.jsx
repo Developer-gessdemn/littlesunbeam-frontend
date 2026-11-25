@@ -4,6 +4,7 @@ import { Phone, Mail, MapPin, MessageSquare, Send, CheckCircle2, Home, ChevronRi
 import SiteHeader from "@/components/SiteHeader.jsx";
 import SiteFooter from "@/components/SiteFooter.jsx";
 import { useShop } from "@/context/ShopContext.jsx";
+import { PHONE_VALIDATION_ERROR, handlePhoneKeyDown, handlePhonePaste, sanitizePhoneNumber, isValidPhoneNumber } from "@/lib/utils.js";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -31,10 +32,17 @@ function ContactPage() {
 
   const [submitted, setSubmitted] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", message: "" });
+  const [contactPhoneError, setContactPhoneError] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.message) return;
+
+    if (!isValidPhoneNumber(formData.phone)) {
+      setContactPhoneError(PHONE_VALIDATION_ERROR);
+      return;
+    }
+    setContactPhoneError("");
 
     // Construct WhatsApp formatted message
     const lines = [
@@ -190,14 +198,33 @@ function ContactPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-foreground">Phone Number</label>
+                    <label className="text-xs font-bold text-foreground">Phone Number *</label>
                     <input
                       type="tel"
-                      placeholder="e.g. +91 98765 43210"
+                      required
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      maxLength={10}
+                      pattern="[0-9]{10}"
+                      placeholder="10-digit mobile number"
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      onKeyDown={handlePhoneKeyDown}
+                      onPaste={(e) => {
+                        handlePhonePaste(e, (val) => {
+                          setFormData({ ...formData, phone: val });
+                          if (contactPhoneError) setContactPhoneError("");
+                        });
+                      }}
+                      onChange={(e) => {
+                        const val = sanitizePhoneNumber(e.target.value);
+                        setFormData({ ...formData, phone: val });
+                        if (contactPhoneError) setContactPhoneError("");
+                      }}
                       className="mt-1 w-full rounded-2xl border border-border bg-background px-4 py-2.5 text-xs sm:text-sm text-foreground outline-none focus:border-primary"
                     />
+                    {contactPhoneError && (
+                      <p className="text-[11px] text-destructive font-medium mt-1">{contactPhoneError}</p>
+                    )}
                   </div>
                 </div>
 

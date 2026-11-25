@@ -4,7 +4,7 @@ import { Heart, ShoppingCart, Star, ChevronLeft, ChevronRight } from "lucide-rea
 import { useShop } from "@/context/ShopContext.jsx";
 
 export default function ProductCard({ product }) {
-  const { addToCart, toggleWishlist, isWishlisted } = useShop();
+  const { addToCart, toggleWishlist, isWishlisted, setCartOpen } = useShop();
   const [added, setAdded] = useState(false);
   const [currentImgIdx, setCurrentImgIdx] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
@@ -69,6 +69,7 @@ export default function ProductCard({ product }) {
     if (success) {
       setAdded(true);
       setTimeout(() => setAdded(false), 1500);
+      if (setCartOpen) setCartOpen(true);
     }
   };
 

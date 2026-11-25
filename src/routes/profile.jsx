@@ -43,6 +43,7 @@ import { generateInvoicePdf, printInvoice } from "@/lib/exportUtils.js";
 import InvoiceModal from "@/components/InvoiceModal.jsx";
 import SiteHeader from "@/components/SiteHeader.jsx";
 import SiteFooter from "@/components/SiteFooter.jsx";
+import { PHONE_VALIDATION_ERROR, handlePhoneKeyDown, handlePhonePaste, sanitizePhoneNumber, isValidPhoneNumber } from "@/lib/utils.js";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -143,6 +144,8 @@ function ProfilePage() {
   const [authPhone, setAuthPhone] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [addressPhoneError, setAddressPhoneError] = useState("");
+  const [profilePhoneError, setProfilePhoneError] = useState("");
 
   // Sync profile form when customer changes
   useEffect(() => {
@@ -150,7 +153,7 @@ function ProfilePage() {
       setProfileForm({
         name: customer.name || "",
         email: customer.email || "",
-        phone: customer.phone || "",
+        phone: sanitizePhoneNumber(customer.phone || ""),
       });
     }
   }, [customer]);
@@ -226,8 +229,11 @@ function ProfilePage() {
         }
         await loginCustomer(authEmail, authPassword);
       } else {
-        if (!authName || !authEmail || !authPassword) {
+        if (!authName || !authEmail || !authPhone || !authPassword) {
           throw new Error("Please fill in all required fields");
+        }
+        if (!isValidPhoneNumber(authPhone)) {
+          throw new Error(PHONE_VALIDATION_ERROR);
         }
         await registerCustomer({
           name: authName,
@@ -249,6 +255,15 @@ function ProfilePage() {
     e.preventDefault();
     setProfileSaving(true);
     setProfileMsg({ text: "", type: "" });
+    setProfilePhoneError("");
+
+    if (profileForm.phone && !isValidPhoneNumber(profileForm.phone)) {
+      setProfileMsg({ text: PHONE_VALIDATION_ERROR, type: "error" });
+      setProfilePhoneError(PHONE_VALIDATION_ERROR);
+      setProfileSaving(false);
+      return;
+    }
+
     try {
       await updateCustomerProfile({
         name: profileForm.name,
@@ -270,6 +285,13 @@ function ProfilePage() {
       alert("Please fill in all required address fields.");
       return;
     }
+
+    if (!isValidPhoneNumber(addressForm.phone)) {
+      setAddressPhoneError(PHONE_VALIDATION_ERROR);
+      alert(PHONE_VALIDATION_ERROR);
+      return;
+    }
+    setAddressPhoneError("");
 
     const newAddr = {
       id: "addr_" + Date.now(),
@@ -566,14 +588,30 @@ function ProfilePage() {
 
                   {authMode === "register" && (
                     <div>
-                      <label className="block text-xs font-bold text-foreground mb-1">Phone Number (Optional)</label>
+                      <label className="block text-xs font-bold text-foreground mb-1">Phone Number (10 digits) *</label>
                       <div className="relative">
                         <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <input
                           type="tel"
-                          placeholder="+91 98765 43210"
+                          inputMode="numeric"
+                          autoComplete="tel"
+                          maxLength={10}
+                          pattern="[0-9]{10}"
+                          required
+                          placeholder="10-digit mobile number"
                           value={authPhone}
-                          onChange={(e) => setAuthPhone(e.target.value)}
+                          onKeyDown={handlePhoneKeyDown}
+                          onPaste={(e) => {
+                            handlePhonePaste(e, (val) => {
+                              setAuthPhone(val);
+                              if (authError) setAuthError("");
+                            });
+                          }}
+                          onChange={(e) => {
+                            const val = sanitizePhoneNumber(e.target.value);
+                            setAuthPhone(val);
+                            if (authError) setAuthError("");
+                          }}
                           className="w-full rounded-xl border border-border bg-muted/20 pl-10 pr-3.5 py-2.5 text-xs text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary transition"
                         />
                       </div>
@@ -1403,16 +1441,34 @@ function ProfilePage() {
 
                         <div>
                           <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                            Phone Number
+                            Phone Number (10 digits)
                           </label>
                           <input
                             type="tel"
+                            inputMode="numeric"
+                            autoComplete="tel"
+                            maxLength={10}
+                            pattern="[0-9]{10}"
                             disabled={!isEditingProfile}
-                            placeholder="+91 98765 43210"
+                            placeholder="10-digit mobile number"
                             value={profileForm.phone}
-                            onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                            onKeyDown={handlePhoneKeyDown}
+                            onPaste={(e) => {
+                              handlePhonePaste(e, (val) => {
+                                setProfileForm({ ...profileForm, phone: val });
+                                if (profilePhoneError) setProfilePhoneError("");
+                              });
+                            }}
+                            onChange={(e) => {
+                              const val = sanitizePhoneNumber(e.target.value);
+                              setProfileForm({ ...profileForm, phone: val });
+                              if (profilePhoneError) setProfilePhoneError("");
+                            }}
                             className="w-full rounded-2xl border border-border bg-muted/20 px-4 py-2.5 text-xs sm:text-sm font-semibold text-foreground outline-none focus:border-primary disabled:opacity-80"
                           />
+                          {profilePhoneError && (
+                            <p className="text-[11px] text-destructive font-medium mt-1">{profilePhoneError}</p>
+                          )}
                         </div>
 
                         {isEditingProfile && (
@@ -1570,11 +1626,29 @@ function ProfilePage() {
                     <input
                       type="tel"
                       required
-                      placeholder="+91 98765 12345"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      maxLength={10}
+                      pattern="[0-9]{10}"
+                      placeholder="10-digit mobile number"
                       value={addressForm.phone}
-                      onChange={(e) => setAddressForm({ ...addressForm, phone: e.target.value })}
+                      onKeyDown={handlePhoneKeyDown}
+                      onPaste={(e) => {
+                        handlePhonePaste(e, (val) => {
+                          setAddressForm({ ...addressForm, phone: val });
+                          if (addressPhoneError) setAddressPhoneError("");
+                        });
+                      }}
+                      onChange={(e) => {
+                        const val = sanitizePhoneNumber(e.target.value);
+                        setAddressForm({ ...addressForm, phone: val });
+                        if (addressPhoneError) setAddressPhoneError("");
+                      }}
                       className="w-full rounded-xl border border-border bg-muted/20 px-3 py-2 text-xs outline-none focus:border-primary"
                     />
+                    {addressPhoneError && (
+                      <p className="text-[11px] text-destructive font-medium mt-1">{addressPhoneError}</p>
+                    )}
                   </div>
                 </div>
 

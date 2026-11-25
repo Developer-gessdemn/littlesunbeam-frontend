@@ -304,7 +304,7 @@ export default function SiteHeader() {
       {/* 2. MAIN STICKY HEADER (Locks smoothly at top:0) */}
       <header className="sticky top-0 z-40 border-b border-border bg-background transition-shadow duration-200 shadow-xs">
         <div
-          className={`mx-auto flex max-w-7xl items-center justify-between gap-3 sm:gap-4 px-4 transition-all duration-300 ease-out ${
+          className={`mx-auto flex max-w-7xl items-center justify-between gap-3 sm:gap-4 px-4 transition-[padding] duration-300 ease-out ${
             isScrolled ? "py-2 sm:py-2.5" : "py-3 sm:py-3.5"
           }`}
         >
@@ -648,14 +648,24 @@ export default function SiteHeader() {
         </div>
 
         {/* 3. NAVIGATION BAR / NAVBAR (Desktop) */}
+        {/* Outer div handles mobile hide; inner nav uses grid-row collapse for smooth scroll animation */}
+        <div className="hidden lg:block">
         <nav
           ref={desktopNavRef}
-          className={`hidden lg:block transition-all duration-300 ease-out bg-background relative ${
-            isScrolled
-              ? "max-h-0 opacity-0 pointer-events-none border-t-0 overflow-hidden"
-              : "opacity-100 border-t border-border overflow-visible"
-          }`}
+          className="bg-background relative"
+          style={{
+            display: "grid",
+            gridTemplateRows: isScrolled ? "0fr" : "1fr",
+            opacity: isScrolled ? 0 : 1,
+            pointerEvents: isScrolled ? "none" : "auto",
+            borderTop: isScrolled ? "none" : "1px solid var(--color-border)",
+            transition:
+              "grid-template-rows 300ms cubic-bezier(0.4,0,0.2,1), opacity 250ms cubic-bezier(0.4,0,0.2,1)",
+          }}
+          data-desktop-nav="true"
         >
+          {/* min-h-0 + overflow-hidden are required for grid-template-rows collapse to work */}
+          <div style={{ minHeight: 0, overflow: "hidden" }}>
           <div className="mx-auto max-w-7xl px-4 py-2 overflow-visible">
             <ul className="flex flex-wrap items-center justify-center gap-x-3 lg:gap-x-4 xl:gap-x-6 gap-y-2 text-xs lg:text-[13px] xl:text-sm font-semibold text-foreground tracking-tight">
               {/* All Products Link */}
@@ -765,7 +775,9 @@ export default function SiteHeader() {
               })}
             </ul>
           </div>
+          </div>{/* end min-h-0 collapse wrapper */}
         </nav>
+        </div>{/* end hidden lg:block desktop-only wrapper */}
 
         {/* 4. SCROLLED DESKTOP HAMBURGER DROPDOWN MENU (Opens when user clicks ☰ while scrolled) */}
         {isScrolled && scrolledNavOpen && (
@@ -813,7 +825,7 @@ export default function SiteHeader() {
                     <Layers className="h-3.5 w-3.5 text-primary" />
                     <span>Shop By Category</span>
                   </h4>
-                  <span className="text-[11px] text-muted-foreground font-medium">
+                  <span className="text-xs sm:text-sm text-muted-foreground font-semibold">
                     {dynamicNavCategories.length} categories available
                   </span>
                 </div>
@@ -835,10 +847,10 @@ export default function SiteHeader() {
                           to="/shop"
                           search={{ category: catParam }}
                           onClick={() => setScrolledNavOpen(false)}
-                          className="flex items-center justify-between font-black text-xs text-foreground group-hover:text-primary transition-colors pb-1.5 border-b border-border/50"
+                          className="flex items-center justify-between font-black text-sm text-foreground group-hover:text-primary transition-colors pb-1.5 border-b border-border/50"
                         >
                           <span className="truncate">{cat.name}</span>
-                          <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:translate-x-0.5 group-hover:text-primary transition-transform shrink-0 ml-1" />
+                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 group-hover:text-primary transition-transform shrink-0 ml-1" />
                         </Link>
 
                         {subs.length > 0 ? (
@@ -854,7 +866,7 @@ export default function SiteHeader() {
                                   to="/shop"
                                   search={{ category: catParam, subCategory: subParam }}
                                   onClick={() => setScrolledNavOpen(false)}
-                                  className="block text-[11px] text-muted-foreground hover:text-primary hover:font-bold transition-colors py-0.5 truncate"
+                                  className="block text-xs text-muted-foreground hover:text-primary hover:font-bold transition-colors py-0.5 truncate font-medium"
                                 >
                                   • {subName}
                                 </Link>
@@ -865,7 +877,7 @@ export default function SiteHeader() {
                                 to="/shop"
                                 search={{ category: catParam }}
                                 onClick={() => setScrolledNavOpen(false)}
-                                className="block text-[10px] font-bold text-primary hover:underline pt-0.5"
+                                className="block text-xs font-bold text-primary hover:underline pt-0.5"
                               >
                                 +{subs.length - 4} more subcategories
                               </Link>
@@ -974,9 +986,9 @@ export default function SiteHeader() {
               </li>
 
               {/* Shop By Category Header */}
-              <li className="pt-2 pb-1">
-                <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-primary" />
+              <li className="pt-2.5 pb-1.5">
+                <p className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-primary" />
                   <span>Shop By Category</span>
                 </p>
               </li>

@@ -251,13 +251,13 @@ function Home() {
         </section>
 
         {/* Shop By Category */}
-        <section className="bg-cream py-10 sm:py-14">
+        <section className="bg-cream py-10 sm:py-16">
           <div className="mx-auto max-w-7xl px-4">
-            <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-10">
-              <h2 className="text-2xl font-extrabold sm:text-3xl">
+            <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-12">
+              <h2 className="text-2xl font-extrabold sm:text-3xl md:text-4xl text-foreground">
                 Shop by <span className="sun-underline">Category</span>
               </h2>
-              <p className="mt-2 text-xs sm:text-sm text-muted-foreground">
+              <p className="mt-2.5 text-sm sm:text-base md:text-lg text-muted-foreground font-medium leading-relaxed">
                 Explore our pure organic cotton baby collections curated with love and care
               </p>
             </div>
@@ -271,7 +271,7 @@ function Home() {
                     key={cat._id || cat.id || cat.slug || cat.name}
                     to="/shop"
                     search={{ category: catParam }}
-                    className="group relative flex flex-col items-center gap-2 rounded-2xl bg-card p-3 sm:p-4 border border-border/80 shadow-xs hover:shadow-lg hover:border-primary/50 transition-all duration-300 transform hover:-translate-y-1"
+                    className="group relative flex flex-col items-center gap-2.5 rounded-2xl bg-card p-3.5 sm:p-5 border border-border/80 shadow-xs hover:shadow-lg hover:border-primary/50 transition-all duration-300 transform hover:-translate-y-1"
                   >
                     <div className="aspect-square w-full overflow-hidden rounded-xl bg-muted/60 relative">
                       <img
@@ -285,11 +285,11 @@ function Home() {
                       />
                     </div>
                     <div className="text-center w-full px-1">
-                      <p className="text-xs sm:text-sm font-extrabold line-clamp-1 group-hover:text-primary transition-colors text-foreground">
+                      <p className="text-sm sm:text-base font-extrabold line-clamp-1 group-hover:text-primary transition-colors text-foreground">
                         {cat.name}
                       </p>
                       {cat.description ? (
-                        <p className="mt-0.5 text-[11px] text-muted-foreground line-clamp-1 hidden sm:block">
+                        <p className="mt-1 text-xs sm:text-sm text-muted-foreground line-clamp-2 block font-medium leading-normal">
                           {cat.description}
                         </p>
                       ) : null}

@@ -10,6 +10,7 @@ import { adminService } from "@/lib/adminService.js";
 import { orderService } from "@/lib/orderService.js";
 import SiteHeader from "@/components/SiteHeader.jsx";
 import SiteFooter from "@/components/SiteFooter.jsx";
+import { PHONE_VALIDATION_ERROR, handlePhoneKeyDown, handlePhonePaste, sanitizePhoneNumber, isValidPhoneNumber } from "@/lib/utils.js";
 import lsbLogo from "@/assets/LSB_Logo1.jpg";
 import { LSB_LOGO_BASE64 } from "@/assets/logoBase64.js";
 
@@ -80,6 +81,7 @@ function CheckoutPage() {
   const [authError, setAuthError] = useState("");
 
   const [authForm, setAuthForm] = useState({ name: "", email: "", phone: "", password: "" });
+  const [shippingPhoneError, setShippingPhoneError] = useState("");
 
   const getSavedAddressFromStorage = (cust = customer) => {
     if (!cust) return null;
@@ -102,7 +104,7 @@ function CheckoutPage() {
     return {
       name: customer?.name || custAddr?.name || "",
       email: customer?.email || custAddr?.email || "",
-      phone: customer?.phone || custAddr?.phone || "",
+      phone: sanitizePhoneNumber(customer?.phone || custAddr?.phone || ""),
       address: custAddr?.street || custAddr?.address || "",
       city: custAddr?.city || "",
       state: custAddr?.state || "",
@@ -183,11 +185,7 @@ function CheckoutPage() {
       setIsCodOptionEnabled(getIsCodAvailable());
     };
 
-    // 3. Heartbeat interval check every 800ms
-    const intervalTimer = setInterval(() => {
-      const current = getIsCodAvailable();
-      setIsCodOptionEnabled((prev) => (prev !== current ? current : prev));
-    }, 800);
+    // 3. No polling interval needed — events (cod_updated, settings_updated, storage, focus) handle all updates reactively
 
     window.addEventListener("settings_updated", handleUpdate);
     window.addEventListener("cod_updated", handleUpdate);
@@ -195,7 +193,6 @@ function CheckoutPage() {
     window.addEventListener("focus", handleFocus);
 
     return () => {
-      clearInterval(intervalTimer);
       if (bc) {
         try { bc.close(); } catch { }
       }
@@ -261,6 +258,12 @@ function CheckoutPage() {
       if (authMode === "login") {
         await loginCustomer(authForm.email, authForm.password);
       } else {
+        if (!authForm.name || !authForm.email || !authForm.phone || !authForm.password) {
+          throw new Error("Please fill in all required fields.");
+        }
+        if (!isValidPhoneNumber(authForm.phone)) {
+          throw new Error(PHONE_VALIDATION_ERROR);
+        }
         await registerCustomer({
           name: authForm.name,
           email: authForm.email,
@@ -281,6 +284,13 @@ function CheckoutPage() {
       alert("Please fill in all required fields (Name, Address, PIN code)");
       return;
     }
+
+    if (!isValidPhoneNumber(shippingForm.phone)) {
+      setShippingPhoneError(PHONE_VALIDATION_ERROR);
+      alert(PHONE_VALIDATION_ERROR);
+      return;
+    }
+    setShippingPhoneError("");
 
     const fullAddr = {
       name: shippingForm.name.trim(),
@@ -577,12 +587,28 @@ function CheckoutPage() {
 
                     {authMode === "register" && (
                       <div>
-                        <label className="block text-xs font-bold mb-1">Phone Number (Optional)</label>
+                        <label className="block text-xs font-bold mb-1">Phone Number (10 digits) *</label>
                         <input
                           type="tel"
-                          placeholder="+91 98765 43210"
+                          inputMode="numeric"
+                          autoComplete="tel"
+                          maxLength={10}
+                          pattern="[0-9]{10}"
+                          required
+                          placeholder="10-digit mobile number"
                           value={authForm.phone}
-                          onChange={(e) => setAuthForm({ ...authForm, phone: e.target.value })}
+                          onKeyDown={handlePhoneKeyDown}
+                          onPaste={(e) => {
+                            handlePhonePaste(e, (val) => {
+                              setAuthForm({ ...authForm, phone: val });
+                              if (authError) setAuthError("");
+                            });
+                          }}
+                          onChange={(e) => {
+                            const val = sanitizePhoneNumber(e.target.value);
+                            setAuthForm({ ...authForm, phone: val });
+                            if (authError) setAuthError("");
+                          }}
                           className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs text-foreground outline-none focus:border-primary transition"
                         />
                       </div>
@@ -727,11 +753,29 @@ function CheckoutPage() {
                           <input
                             type="tel"
                             required
+                            inputMode="numeric"
+                            autoComplete="tel"
+                            maxLength={10}
+                            pattern="[0-9]{10}"
                             value={shippingForm.phone}
-                            onChange={(e) => setShippingForm({ ...shippingForm, phone: e.target.value })}
-                            placeholder="+91 98765 43210"
+                            onKeyDown={handlePhoneKeyDown}
+                            onPaste={(e) => {
+                              handlePhonePaste(e, (val) => {
+                                setShippingForm({ ...shippingForm, phone: val });
+                                if (shippingPhoneError) setShippingPhoneError("");
+                              });
+                            }}
+                            onChange={(e) => {
+                              const val = sanitizePhoneNumber(e.target.value);
+                              setShippingForm({ ...shippingForm, phone: val });
+                              if (shippingPhoneError) setShippingPhoneError("");
+                            }}
+                            placeholder="10-digit mobile number"
                             className="w-full rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs text-foreground outline-none focus:border-primary transition"
                           />
+                          {shippingPhoneError && (
+                            <p className="text-[11px] text-destructive font-medium mt-1">{shippingPhoneError}</p>
+                          )}
                         </div>
                       </div>
 

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 import { products as initialProducts, categories as initialCategories } from "@/data/products";
 import heroBabyImg from "@/assets/hero-baby.jpg";
-import { API_BASE_URL } from "@/lib/utils.js";
+import { API_BASE_URL, PHONE_VALIDATION_ERROR, isValidPhoneNumber, sanitizePhoneNumber } from "@/lib/utils.js";
 
 const ShopContext = createContext(null);
 
@@ -947,7 +947,6 @@ function InnerShopProvider({ children }) {
 
   // ─── User-Scoped Cart state ───────────────────────────────────────────────
   const [cart, setCart] = useState(() => {
-    if (!currentUserId) return [];
     try {
       const key = getUserCartKey(currentUserId);
       const saved = localStorage.getItem(key);
@@ -959,7 +958,6 @@ function InnerShopProvider({ children }) {
 
   // ─── User-Scoped Wishlist state ───────────────────────────────────────────
   const [wishlist, setWishlist] = useState(() => {
-    if (!currentUserId) return [];
     try {
       const key = getUserWishlistKey(currentUserId);
       const saved = localStorage.getItem(key);
@@ -972,20 +970,20 @@ function InnerShopProvider({ children }) {
   // Whenever the active user changes (login / logout / switch account), load their cart and wishlist
   useEffect(() => {
     if (!currentUserId || !customerAuth.token) {
-      setCart([]);
-      setWishlist([]);
+      // Guest mode: load guest cart and wishlist from localStorage
+      try {
+        const guestSavedCart = localStorage.getItem(getUserCartKey("guest"));
+        if (guestSavedCart) setCart(JSON.parse(guestSavedCart));
+      } catch { }
+      try {
+        const guestSavedWish = localStorage.getItem(getUserWishlistKey("guest"));
+        if (guestSavedWish) setWishlist(JSON.parse(guestSavedWish));
+      } catch { }
       return;
     }
 
     const keyCart = getUserCartKey(currentUserId);
     const keyWish = getUserWishlistKey(currentUserId);
-
-    // ─── IMPORTANT: Clear state immediately on user switch ───────────────────
-    // Do NOT pre-load stale localStorage here. The backend is the single source
-    // of truth. We only fall back to localStorage if the network request fails.
-    // This prevents deleted/dummy cart items from flashing on login.
-    setCart([]);
-    setWishlist([]);
 
     const handleUnauthorized = (r) => {
       if (r.status === 401) {
@@ -1035,17 +1033,16 @@ function InnerShopProvider({ children }) {
               };
             });
           setCart(formattedItems);
-          // Sync localStorage with the authoritative backend data
+          // Sync localStorage with authoritative backend data
           if (formattedItems.length > 0) {
             localStorage.setItem(keyCart, JSON.stringify(formattedItems));
           } else {
-            // Backend says cart is empty — wipe any stale localStorage entry
             localStorage.removeItem(keyCart);
           }
         }
       })
       .catch(() => {
-        // Network failure only — fall back to localStorage as last resort
+        // Network failure — fall back to localStorage
         try {
           const savedCart = localStorage.getItem(keyCart);
           if (savedCart) {
@@ -1084,7 +1081,7 @@ function InnerShopProvider({ children }) {
         }
       })
       .catch(() => {
-        // Network failure only — fall back to localStorage as last resort
+        // Network failure — fall back to localStorage
         try {
           const savedWish = localStorage.getItem(keyWish);
           if (savedWish) setWishlist(JSON.parse(savedWish));
@@ -1115,20 +1112,16 @@ function InnerShopProvider({ children }) {
     }
   }, [currentUserId, customerAuth.token]);
 
-  // Persist cart to localStorage whenever it changes (only when logged in)
-  // Note: cart is set from backend on login; this keeps localStorage in sync
-  // after user actions (add/remove/update) that happen during the session.
+  // Persist cart to localStorage whenever it changes (for both guest and logged-in user)
   useEffect(() => {
-    if (!currentUserId) return;
     try {
       const key = getUserCartKey(currentUserId);
       localStorage.setItem(key, JSON.stringify(cart));
     } catch { }
   }, [cart, currentUserId]);
 
-  // Persist wishlist to active user's storage only if logged in
+  // Persist wishlist to storage
   useEffect(() => {
-    if (!currentUserId) return;
     try {
       const key = getUserWishlistKey(currentUserId);
       localStorage.setItem(key, JSON.stringify(wishlist));
@@ -1163,6 +1156,17 @@ function InnerShopProvider({ children }) {
   // Customer Login
   const loginCustomer = async (email, password) => {
     try {
+      // Capture guest cart BEFORE resetting auth so we can merge it
+      const guestKey = getUserCartKey("guest");
+      let guestCartSnapshot = [];
+      try {
+        const storedGuest = localStorage.getItem(guestKey);
+        if (storedGuest) guestCartSnapshot = JSON.parse(storedGuest);
+      } catch { }
+      if (!guestCartSnapshot.length && cart.length > 0 && !currentUserId) {
+        guestCartSnapshot = [...cart];
+      }
+
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1175,6 +1179,22 @@ function InnerShopProvider({ children }) {
       }
 
       const { token, user } = data.data;
+
+      // Merge guest cart if any BEFORE or during session set
+      if (guestCartSnapshot.length > 0) {
+        try {
+          await fetch(`${API_BASE_URL}/cart/merge`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ guestItems: guestCartSnapshot }),
+          });
+          localStorage.removeItem(guestKey);
+        } catch { }
+      }
+
       setCustomerSession(token, user);
       return { success: true, user, token };
     } catch (err) {
@@ -1184,14 +1204,29 @@ function InnerShopProvider({ children }) {
 
   // Customer Register
   const registerCustomer = async ({ name, email, phone, password, confirmPassword }) => {
+    const cleanPhone = sanitizePhoneNumber(phone);
+    if (!isValidPhoneNumber(cleanPhone)) {
+      throw new Error(PHONE_VALIDATION_ERROR);
+    }
+
     try {
+      const guestKey = getUserCartKey("guest");
+      let guestCartSnapshot = [];
+      try {
+        const storedGuest = localStorage.getItem(guestKey);
+        if (storedGuest) guestCartSnapshot = JSON.parse(storedGuest);
+      } catch { }
+      if (!guestCartSnapshot.length && cart.length > 0 && !currentUserId) {
+        guestCartSnapshot = [...cart];
+      }
+
       const res = await fetch(`${API_BASE_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
           email: email.toLowerCase().trim(),
-          phone: phone ? phone.trim() : "",
+          phone: cleanPhone,
           password,
           confirmPassword,
         }),
@@ -1203,6 +1238,21 @@ function InnerShopProvider({ children }) {
       }
 
       const { token, user } = data.data;
+
+      if (guestCartSnapshot.length > 0) {
+        try {
+          await fetch(`${API_BASE_URL}/cart/merge`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ guestItems: guestCartSnapshot }),
+          });
+          localStorage.removeItem(guestKey);
+        } catch { }
+      }
+
       setCustomerSession(token, user);
       return { success: true, user, token };
     } catch (err) {
@@ -1214,18 +1264,26 @@ function InnerShopProvider({ children }) {
         id: "cust_" + Date.now(),
         name: name.trim(),
         email: email.toLowerCase().trim(),
-        phone: phone ? phone.trim() : "",
+        phone: cleanPhone,
         role: "user",
         createdAt: new Date().toISOString(),
       };
       const token = "demo_jwt_customer_token_" + Date.now();
       setCustomerSession(token, newUser);
-      return { success: true, user, newUser, token };
+      return { success: true, user: newUser, token };
     }
   };
 
   // Update Customer Profile
   const updateCustomerProfile = async (updates) => {
+    if (updates && updates.phone !== undefined) {
+      const cleanPhone = sanitizePhoneNumber(updates.phone);
+      if (cleanPhone && !isValidPhoneNumber(cleanPhone)) {
+        throw new Error(PHONE_VALIDATION_ERROR);
+      }
+      updates.phone = cleanPhone;
+    }
+
     const updatedUser = { ...(customerAuth.user || {}), ...updates };
     setCustomerSession(customerAuth.token, updatedUser);
 
@@ -1276,12 +1334,6 @@ function InnerShopProvider({ children }) {
 
   // ─── Cart actions ─────────────────────────────────────────────────────────
   const addToCart = useCallback((product, qtyToAdd = 1) => {
-    // 1. Block Guest user & prompt login
-    if (!customerAuth.token || !customerAuth.isAuthenticated) {
-      requireLogin("Please login to continue.");
-      return false;
-    }
-
     const pId = String(product._id || product.id || product.productId);
     const quantity = Math.max(1, Number(qtyToAdd) || Number(product.qty) || 1);
     const color = String(product.selectedColor || product.color || (product.colors && product.colors[0]?.name) || "Default").trim();
@@ -1338,68 +1390,69 @@ function InnerShopProvider({ children }) {
       ];
     });
 
-    // Sync to backend with user's JWT token
-    fetch(`${API_BASE_URL}/cart`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${customerAuth.token}`,
-      },
-      body: JSON.stringify({
-        productId: pId,
-        quantity,
-        selectedSize: size,
-        selectedColor: color,
-        variant,
-        price,
-        image,
-      }),
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.data?.items && Array.isArray(data.data.items)) {
-          const formattedItems = data.data.items
-            .filter((i) => Boolean(i && (i.product || i.name)))
-            .map((i) => {
-              const prodId = String(i.product?._id || i.product || i._id);
-              const c = String(i.selectedColor || i.color || "Default").trim();
-              const s = String(i.selectedSize || i.size || "Standard").trim();
-              const v = i.variant || (c !== "Default" && s !== "Standard" ? `${c} / ${s}` : c !== "Default" ? c : s !== "Standard" ? s : "");
-              const cItemId = `${prodId}_${c}_${s}`;
-              const itemDbId = String(i._id || "");
-              const itemPrice = parsePrice(
-                i.price,
-                i.product?.price,
-                i.product?.sellingPrice,
-                i.product?.mrp,
-                price
-              );
-              return {
-                id: cItemId,
-                _id: itemDbId || cItemId,
-                productId: prodId,
-                cartItemId: cItemId,
-                name: i.name || i.product?.name || "Baby Clothing",
-                price: itemPrice,
-                image: i.image || i.product?.image || (i.product?.gallery && i.product?.gallery[0]) || "",
-                qty: Math.max(1, Number(i.quantity || i.qty) || 1),
-                size: s,
-                color: c,
-                selectedSize: s,
-                selectedColor: c,
-                variant: v,
-              };
-            });
-          setCart(formattedItems);
-        }
+    // If customer is logged in, also sync to backend
+    if (customerAuth.token) {
+      fetch(`${API_BASE_URL}/cart`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${customerAuth.token}`,
+        },
+        body: JSON.stringify({
+          productId: pId,
+          quantity,
+          selectedSize: size,
+          selectedColor: color,
+          variant,
+          price,
+          image,
+        }),
       })
-      .catch(() => { });
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.data?.items && Array.isArray(data.data.items)) {
+            const formattedItems = data.data.items
+              .filter((i) => Boolean(i && (i.product || i.name)))
+              .map((i) => {
+                const prodId = String(i.product?._id || i.product || i._id);
+                const c = String(i.selectedColor || i.color || "Default").trim();
+                const s = String(i.selectedSize || i.size || "Standard").trim();
+                const v = i.variant || (c !== "Default" && s !== "Standard" ? `${c} / ${s}` : c !== "Default" ? c : s !== "Standard" ? s : "");
+                const cItemId = `${prodId}_${c}_${s}`;
+                const itemDbId = String(i._id || "");
+                const itemPrice = parsePrice(
+                  i.price,
+                  i.product?.price,
+                  i.product?.sellingPrice,
+                  i.product?.mrp,
+                  price
+                );
+                return {
+                  id: cItemId,
+                  _id: itemDbId || cItemId,
+                  productId: prodId,
+                  cartItemId: cItemId,
+                  name: i.name || i.product?.name || "Baby Clothing",
+                  price: itemPrice,
+                  image: i.image || i.product?.image || (i.product?.gallery && i.product?.gallery[0]) || "",
+                  qty: Math.max(1, Number(i.quantity || i.qty) || 1),
+                  size: s,
+                  color: c,
+                  selectedSize: s,
+                  selectedColor: c,
+                  variant: v,
+                };
+              });
+            setCart(formattedItems);
+          }
+        })
+        .catch(() => { });
+    }
 
     return true;
-  }, [customerAuth.token, customerAuth.isAuthenticated, requireLogin]);
+  }, [customerAuth.token]);
 
   const removeFromCart = useCallback((itemId) => {
-    if (!customerAuth.token) return;
     const key = String(itemId);
     setCart((prev) =>
       prev.filter(
@@ -1412,17 +1465,15 @@ function InnerShopProvider({ children }) {
       )
     );
 
-    fetch(`${API_BASE_URL}/cart/${encodeURIComponent(key)}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${customerAuth.token}` },
-    }).catch(() => { });
+    if (customerAuth.token) {
+      fetch(`${API_BASE_URL}/cart/${encodeURIComponent(key)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${customerAuth.token}` },
+      }).catch(() => { });
+    }
   }, [customerAuth.token]);
 
   const updateCartQty = useCallback((itemId, delta) => {
-    if (!customerAuth.token) {
-      requireLogin("Please login to continue.");
-      return;
-    }
     const key = String(itemId);
     setCart((prev) =>
       prev
@@ -1436,24 +1487,58 @@ function InnerShopProvider({ children }) {
         .filter((i) => i.qty > 0)
     );
 
-    fetch(`${API_BASE_URL}/cart/${encodeURIComponent(key)}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${customerAuth.token}`,
-      },
-      body: JSON.stringify({ delta }),
-    }).catch(() => { });
-  }, [customerAuth.token, requireLogin]);
+    if (customerAuth.token) {
+      fetch(`${API_BASE_URL}/cart/${encodeURIComponent(key)}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${customerAuth.token}`,
+        },
+        body: JSON.stringify({ delta }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          // Sync authoritative backend state back to frontend
+          if (data?.data?.items && Array.isArray(data.data.items)) {
+            const formattedItems = data.data.items
+              .filter((i) => Boolean(i && (i.product || i.name)))
+              .map((i) => {
+                const prodId = String(i.product?._id || i.product || i._id);
+                const c = String(i.selectedColor || i.color || "Default").trim();
+                const s = String(i.selectedSize || i.size || "Standard").trim();
+                const v = i.variant || (c !== "Default" && s !== "Standard" ? `${c} / ${s}` : c !== "Default" ? c : s !== "Standard" ? s : "");
+                const cItemId = `${prodId}_${c}_${s}`;
+                const itemDbId = String(i._id || "");
+                const itemPrice = parsePrice(i.price, i.product?.price, i.product?.sellingPrice, i.product?.mrp);
+                return {
+                  id: cItemId,
+                  _id: itemDbId || cItemId,
+                  productId: prodId,
+                  cartItemId: cItemId,
+                  name: i.name || i.product?.name || "Baby Clothing",
+                  price: itemPrice,
+                  image: i.image || i.product?.image || (i.product?.gallery && i.product?.gallery[0]) || "",
+                  qty: Math.max(1, Number(i.quantity || i.qty) || 1),
+                  size: s,
+                  color: c,
+                  selectedSize: s,
+                  selectedColor: c,
+                  variant: v,
+                };
+              });
+            setCart(formattedItems);
+          }
+        })
+        .catch(() => { });
+    }
+  }, [customerAuth.token]);
 
   const clearCart = useCallback(() => {
     setCart([]);
-    if (currentUserId) {
-      try {
-        const key = getUserCartKey(currentUserId);
-        localStorage.removeItem(key);
-      } catch { }
-    }
+    try {
+      const key = getUserCartKey(currentUserId);
+      localStorage.removeItem(key);
+    } catch { }
     if (customerAuth.token) {
       fetch(`${API_BASE_URL}/cart`, {
         method: "DELETE",
