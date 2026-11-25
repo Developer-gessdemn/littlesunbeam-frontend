@@ -125,14 +125,13 @@ export default function AuthModal({ open, onClose }) {
     try {
       const input = forgotEmail.trim();
       if (!input) {
-        throw new Error("Please enter your registered email address or mobile number");
+        throw new Error("Please enter your registered email address");
       }
 
-      // Basic client-side validation
-      const isPhone = /^\d{10}$/.test(input);
+      // Email-only validation
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
-      if (!isPhone && !isEmail) {
-        throw new Error("Please enter a valid email address or 10-digit mobile number");
+      if (!isEmail) {
+        throw new Error("Please enter a valid email address");
       }
 
       const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
@@ -315,7 +314,7 @@ export default function AuthModal({ open, onClose }) {
   const subtitles = {
     login: "Sign in to track baby orders, wishlist & receive special offers.",
     register: "Join Little Sunbeam to enjoy effortless baby shopping.",
-    forgot: "Enter your registered email or mobile number to receive an OTP.",
+    forgot: "Enter your registered email address to receive an OTP.",
     "verify-otp": "Enter the 6-digit code sent to your email. Valid for 5 minutes.",
     "reset-password": "Create a strong new password for your account.",
   };
@@ -528,8 +527,8 @@ export default function AuthModal({ open, onClose }) {
             <div className="relative">
               <Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
-                type="text"
-                placeholder="Registered email or 10-digit mobile"
+                type="email"
+                placeholder="Enter your registered email address"
                 value={forgotEmail}
                 onChange={(e) => { setForgotEmail(e.target.value); if (error) setError(""); }}
                 required
