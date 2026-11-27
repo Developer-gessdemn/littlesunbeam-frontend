@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "@tanstack/react-router";
 import { Star, Check, Heart, MessageSquareQuote, Sparkles } from "lucide-react";
-import { API_BASE_URL } from "@/lib/utils.js";
+import { API_BASE_URL, safeParseJson } from "@/lib/utils.js";
 
 export default function CustomerReviewsCarousel() {
   const [reviews, setReviews] = useState([]);
@@ -12,7 +12,7 @@ export default function CustomerReviewsCarousel() {
     try {
       const res = await fetch(`${API_BASE_URL}/reviews?limit=15`);
       if (res.ok) {
-        const data = await res.json();
+        const data = await safeParseJson(res);
         if (Array.isArray(data?.data?.reviews)) {
           setReviews(data.data.reviews);
           return;

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Eye, EyeOff, Mail, Lock, User, Phone, Leaf, AlertCircle, CheckCircle2, Loader2, ArrowLeft, KeyRound, RefreshCw } from "lucide-react";
 import { useShop } from "@/context/ShopContext.jsx";
-import { API_BASE_URL, PHONE_VALIDATION_ERROR, handlePhoneKeyDown, handlePhonePaste, sanitizePhoneNumber, isValidPhoneNumber } from "@/lib/utils.js";
+import { API_BASE_URL, PHONE_VALIDATION_ERROR, handlePhoneKeyDown, handlePhonePaste, sanitizePhoneNumber, isValidPhoneNumber, safeParseJson } from "@/lib/utils.js";
 
 export default function AuthModal({ open, onClose }) {
   const { loginCustomer, registerCustomer, authNotice, setAuthNotice } = useShop();
@@ -139,7 +139,7 @@ export default function AuthModal({ open, onClose }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: input }),
       });
-      const data = await res.json();
+      const data = await safeParseJson(res);
 
       if (!res.ok) {
         // Handle cooldown error from server
@@ -184,7 +184,7 @@ export default function AuthModal({ open, onClose }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: forgotEmail.trim() }),
       });
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (!res.ok) {
         if (res.status === 429 && data.retryAfter) {
           setResendCooldown(data.retryAfter);
@@ -225,7 +225,7 @@ export default function AuthModal({ open, onClose }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: forgotEmail.toLowerCase().trim(), otp }),
       });
-      const data = await res.json();
+      const data = await safeParseJson(res);
 
       if (!res.ok) {
         throw new Error(data.message || "Invalid OTP. Please try again.");
@@ -266,7 +266,7 @@ export default function AuthModal({ open, onClose }) {
           confirmPassword: confirmNewPassword,
         }),
       });
-      const data = await res.json();
+      const data = await safeParseJson(res);
 
       if (!res.ok) {
         throw new Error(data.message || "Failed to reset password");

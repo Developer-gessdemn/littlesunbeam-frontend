@@ -1,5 +1,5 @@
 import { products as initialProducts, categories as initialCategories } from "@/data/products";
-import { API_BASE_URL } from "@/lib/utils.js";
+import { API_BASE_URL, safeParseJson } from "@/lib/utils.js";
 
 const TOKEN_KEY = "little_sunbeam_admin_token";
 const USER_KEY = "little_sunbeam_admin_user";
@@ -67,7 +67,7 @@ async function apiRequest(endpoint, options = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: "admin@littlesunbeam.com", password: "Admin@123456" }),
       });
-      const loginData = await loginRes.json();
+      const loginData = await safeParseJson(loginRes);
       if (loginRes.ok && loginData.data?.token) {
         token = loginData.data.token;
         setAdminAuth(token, loginData.data.user);
@@ -482,7 +482,7 @@ export const adminService = {
     }
     try {
       const res = await fetch(`${API_BASE_URL}/orders/razorpay-key`);
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (res.ok && data.data?.keyId) {
         return data.data.keyId;
       }
@@ -507,7 +507,7 @@ export const adminService = {
       body: JSON.stringify({ amount, currency }),
     });
 
-    const data = await res.json();
+    const data = await safeParseJson(res);
     if (!res.ok) {
       throw new Error(data.message || `Failed to create payment order (${res.status})`);
     }
@@ -1099,7 +1099,7 @@ export const adminService = {
         body: formData,
       });
 
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (!res.ok) {
         throw new Error(data.message || "Failed to upload image");
       }
@@ -1129,7 +1129,7 @@ export const adminService = {
         body: formData,
       });
 
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (!res.ok) {
         throw new Error(data.message || "Failed to upload video");
       }
@@ -1159,7 +1159,7 @@ export const adminService = {
         body: formData,
       });
 
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (!res.ok) {
         throw new Error(data.message || "Failed to upload videos");
       }

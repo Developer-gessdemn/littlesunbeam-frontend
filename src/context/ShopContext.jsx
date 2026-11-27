@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 import { products as initialProducts, categories as initialCategories } from "@/data/products";
 import heroBabyImg from "@/assets/hero-baby.jpg";
-import { API_BASE_URL, PHONE_VALIDATION_ERROR, isValidPhoneNumber, sanitizePhoneNumber } from "@/lib/utils.js";
+import { API_BASE_URL, PHONE_VALIDATION_ERROR, isValidPhoneNumber, sanitizePhoneNumber, safeParseJson } from "@/lib/utils.js";
 
 const ShopContext = createContext(null);
 
@@ -400,7 +400,7 @@ function InnerShopProvider({ children }) {
     try {
       const res = await fetch(`${API_BASE_URL}/banners?all=true`);
       if (!res.ok) throw new Error("Failed to fetch live hero banners");
-      const data = await res.json();
+      const data = await safeParseJson(res);
       const rawBanners = data.data?.banners || data.banners || [];
       if (Array.isArray(rawBanners) && rawBanners.length > 0) {
         setHeroBannersState(rawBanners);
@@ -514,7 +514,7 @@ function InnerShopProvider({ children }) {
     try {
       const res = await fetch(`${API_BASE_URL}/prints?all=true`);
       if (!res.ok) throw new Error("Failed to fetch live prints");
-      const data = await res.json();
+      const data = await safeParseJson(res);
       const rawPrints = data.data?.prints || data.prints || [];
       if (Array.isArray(rawPrints)) {
         setPrintsState(rawPrints);
@@ -572,7 +572,7 @@ function InnerShopProvider({ children }) {
     try {
       const res = await fetch(`${API_BASE_URL}/categories`);
       if (!res.ok) throw new Error("Failed to fetch live categories");
-      const data = await res.json();
+      const data = await safeParseJson(res);
       const rawCategories = data.data?.categories || data.categories || [];
       if (Array.isArray(rawCategories)) {
         setCategoriesState(rawCategories);
@@ -646,7 +646,7 @@ function InnerShopProvider({ children }) {
     try {
       const res = await fetch(`${API_BASE_URL}/settings`);
       if (!res.ok) throw new Error("Failed to fetch settings");
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (data?.data) {
         const localCod = getInitialCodStatus();
         const localSizeChart = getInitialSizeChartStatus();
@@ -753,7 +753,7 @@ function InnerShopProvider({ children }) {
         cache: "no-store",
       });
       if (!res.ok) throw new Error("Failed to fetch live products");
-      const data = await res.json();
+      const data = await safeParseJson(res);
       const rawProducts = data.data?.products || data.products || [];
       if (Array.isArray(rawProducts)) {
         const normalized = rawProducts.map(normalizeProduct);
@@ -991,7 +991,7 @@ function InnerShopProvider({ children }) {
         setCustomerSession(null, null);
         return null;
       }
-      return r.ok ? r.json() : null;
+      return r.ok ? safeParseJson(r) : null;
     };
 
     // 1. Fetch user remote cart — backend is the source of truth
@@ -1064,7 +1064,11 @@ function InnerShopProvider({ children }) {
       headers: { Authorization: `Bearer ${customerAuth.token}` },
     })
       .then((res) => {
-        if (res.ok) return res.json();
+        if (res.status === 401) {
+          setCustomerSession(null, null);
+          return null;
+        }
+        if (res.ok) return safeParseJson(res);
         return fetch(`${API_BASE_URL}/users/wishlist`, {
           headers: { Authorization: `Bearer ${customerAuth.token}` },
         }).then(handleUnauthorized);
@@ -1092,7 +1096,7 @@ function InnerShopProvider({ children }) {
       fetch(`${API_BASE_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${customerAuth.token}` },
       })
-        .then((res) => (res.ok ? res.json() : null))
+        .then(handleUnauthorized)
         .then((data) => {
           if (data?.data?.user) {
             const freshUser = data.data.user;
@@ -1172,7 +1176,7 @@ function InnerShopProvider({ children }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
       });
-      const data = await res.json();
+      const data = await safeParseJson(res);
 
       if (!res.ok) {
         throw new Error(data.message || "Invalid email or password");
@@ -1231,7 +1235,7 @@ function InnerShopProvider({ children }) {
           confirmPassword,
         }),
       });
-      const data = await res.json();
+      const data = await safeParseJson(res);
 
       if (!res.ok) {
         throw new Error(data.message || "Registration failed");
@@ -1298,7 +1302,7 @@ function InnerShopProvider({ children }) {
           body: JSON.stringify(updates),
         });
         if (res.ok) {
-          const data = await res.json();
+          const data = await safeParseJson(res);
           if (data.data?.user) {
             setCustomerSession(customerAuth.token, data.data.user);
             return data.data.user;
@@ -1408,7 +1412,13 @@ function InnerShopProvider({ children }) {
           image,
         }),
       })
-        .then((res) => (res.ok ? res.json() : null))
+        .then((res) => {
+          if (res.status === 401) {
+            setCustomerSession(null, null);
+            return null;
+          }
+          return res.ok ? safeParseJson(res) : null;
+        })
         .then((data) => {
           if (data?.data?.items && Array.isArray(data.data.items)) {
             const formattedItems = data.data.items
@@ -1496,7 +1506,13 @@ function InnerShopProvider({ children }) {
         },
         body: JSON.stringify({ delta }),
       })
-        .then((res) => (res.ok ? res.json() : null))
+        .then((res) => {
+          if (res.status === 401) {
+            setCustomerSession(null, null);
+            return null;
+          }
+          return res.ok ? safeParseJson(res) : null;
+        })
         .then((data) => {
           // Sync authoritative backend state back to frontend
           if (data?.data?.items && Array.isArray(data.data.items)) {
@@ -1576,7 +1592,13 @@ function InnerShopProvider({ children }) {
       },
       body: JSON.stringify({ productId: pId }),
     })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (res.status === 401) {
+          setCustomerSession(null, null);
+          return null;
+        }
+        return res.ok ? safeParseJson(res) : null;
+      })
       .then((data) => {
         if (data?.data?.wishlist && Array.isArray(data.data.wishlist)) {
           setWishlist(data.data.wishlist.map(normalizeProduct));

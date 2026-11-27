@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./utils";
+import { API_BASE_URL, safeParseJson } from "./utils";
 
 const LOCAL_ORDERS_KEY = "little_sunbeam_admin_orders";
 const CUSTOMER_TOKEN_KEY = "little_sunbeam_customer_token";
@@ -150,7 +150,7 @@ export const orderService = {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
-          const data = await res.json();
+          const data = await safeParseJson(res);
           liveOrders = data.data?.orders || [];
           isLiveBackend = true;
           // Merge into local cache so admin and profile stay in sync
@@ -199,7 +199,7 @@ export const orderService = {
       });
 
       if (res.ok) {
-        const data = await res.json();
+        const data = await safeParseJson(res);
         liveOrders = data.data?.orders || [];
         totalCount = data.data?.pagination?.total || liveOrders.length;
         isLiveBackend = true;

@@ -31,7 +31,7 @@ import SiteFooter from "@/components/SiteFooter.jsx";
 import ProductCard from "@/components/ProductCard.jsx";
 import ProductFloatingVideo from "@/components/ProductFloatingVideo.jsx";
 import { useShop, normalizeProduct } from "@/context/ShopContext.jsx";
-import { API_BASE_URL } from "@/lib/utils.js";
+import { API_BASE_URL, safeParseJson } from "@/lib/utils.js";
 
 export const Route = createFileRoute("/product/$productId")({
   component: ProductDetailsPage,
@@ -66,7 +66,7 @@ function ProductDetailsPage() {
   useEffect(() => {
     if (productId) {
       fetch(`${API_BASE_URL}/products/${productId}?_t=${Date.now()}`, { cache: "no-store" })
-        .then((res) => (res.ok ? res.json() : null))
+        .then((res) => (res.ok ? safeParseJson(res) : null))
         .then((data) => {
           if (data?.data?.product) {
             setLiveProduct(normalizeProduct(data.data.product));
@@ -317,7 +317,7 @@ function ProductDetailsPage() {
           `${API_BASE_URL}/products/${currentProdId}/reviews?sort=${sortKey}`
         );
         if (res.ok) {
-          const data = await res.json();
+          const data = await safeParseJson(res);
           if (data?.data) {
             setReviewsList(data.data.reviews || []);
             setReviewStats({
@@ -482,7 +482,7 @@ function ProductDetailsPage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (!res.ok) {
         throw new Error(data.message || "Failed to submit review.");
       }
@@ -518,7 +518,7 @@ function ProductDetailsPage() {
         method: "DELETE",
         headers: { Authorization: `Bearer ${customerToken}` },
       });
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (!res.ok) {
         throw new Error(data.message || "Failed to delete review.");
       }
@@ -547,7 +547,7 @@ function ProductDetailsPage() {
         method: "POST",
         headers: { Authorization: `Bearer ${customerToken}` },
       });
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (res.ok && data?.data) {
         setReviewsList((prev) =>
           prev.map((r) =>

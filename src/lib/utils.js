@@ -31,6 +31,25 @@ export function getApiBaseUrl() {
 export const API_BASE_URL = getApiBaseUrl();
 const resolvedMediaCache = new Map();
 
+/**
+ * Safely parse a Fetch Response as JSON.
+ * Prevents `Unexpected token '<', "<html>" is not valid JSON` when a proxy/server
+ * returns an HTML error page (e.g., Nginx 502 Bad Gateway, 504 Timeout, or 404).
+ */
+export async function safeParseJson(res) {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    const status = res?.status || 500;
+    if (status === 502 || status === 503 || status === 504) {
+      throw new Error(`Server is temporarily unavailable (HTTP ${status}). Please try again in a moment.`);
+    }
+    throw new Error(`Unexpected server response (HTTP ${status}). Please try again.`);
+  }
+}
+
 export async function resolveInstagramVideoUrl(url) {
   if (!url || typeof url !== "string") return { resolvedVideoUrl: null, isFallbackNeeded: false };
   const cleanUrl = url.trim();
@@ -43,15 +62,19 @@ export async function resolveInstagramVideoUrl(url) {
     return resolvedMediaCache.get(cleanUrl);
   }
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 7000);
+
   try {
     const res = await fetch(`${API_BASE_URL}/upload/resolve-instagram`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: cleanUrl }),
+      signal: controller.signal,
     });
 
     if (res.ok) {
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (data.success && data.data?.resolvedVideoUrl) {
         const result = {
           resolvedVideoUrl: data.data.resolvedVideoUrl,
@@ -77,6 +100,8 @@ export async function resolveInstagramVideoUrl(url) {
     }
   } catch (err) {
     console.warn("[Instagram Resolver Client Error]:", err.message);
+  } finally {
+    clearTimeout(timer);
   }
 
   const fallbackResult = {
